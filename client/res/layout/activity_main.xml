@@ -2,8 +2,7 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
 	android:layout_width="match_parent"
 	android:layout_height="wrap_content"
-	android:background="@android:color/white"
-	android:orientation="vertical">
+	android:background="@android:color/white">
 	<RelativeLayout 
 		android:layout_width="wrap_content"
 		android:layout_height="wrap_content"
@@ -21,13 +20,20 @@
 		>
 		<include layout="@layout/main_footbar"/>
 	</LinearLayout>
+	
+	<com.baidu.mapapi.map.MapView android:id="@+id/bmapView"
+	android:layout_width="fill_parent"
+	android:layout_height="fill_parent" 
+	android:clickable="true"
+	android:layout_below="@+id/main_headbar_layout"
+	android:layout_above="@+id/main_footbar_layout"/>
 
-	<ImageView 
-	   	    android:id="@+id/main_mapview"
-	   	    android:layout_width="fill_parent"
-	   	    android:layout_height="fill_parent"
-	   	    android:layout_below="@+id/main_headbar_layout"
-	   	    android:layout_above="@+id/main_footbar_layout"
-	   	    android:scaleType="matrix"
-	   	    android:src="@drawable/data"/>
+	<Button
+	    android:id="@+id/requestLoc"
+	    android:layout_width="wrap_content"
+	    android:layout_height="wrap_content"
+	    android:layout_alignParentRight="true"
+	    android:layout_below="@+id/main_headbar_layout"
+	    android:text="Button" />
+	
 </RelativeLayout>

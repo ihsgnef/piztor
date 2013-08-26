@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry kind="src" path="src"/>
-	<classpathentry kind="src" path="gen"/>
 	<classpathentry kind="con" path="com.android.ide.eclipse.adt.ANDROID_FRAMEWORK"/>
 	<classpathentry exported="true" kind="con" path="com.android.ide.eclipse.adt.LIBRARIES"/>
 	<classpathentry exported="true" kind="con" path="com.android.ide.eclipse.adt.DEPENDENCIES"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="gen"/>
+	<classpathentry kind="lib" path="/home/fs/Downloads/BaiduMap_AndroidSDK_v2.1.3_All/BaiduMap_AndroidSDK_v2.1.3_Lib/locSDK_3.1.jar"/>
+	<classpathentry kind="lib" path="/home/fs/Downloads/BaiduMap_AndroidSDK_v2.1.3_All/BaiduMap_AndroidSDK_v2.1.3_Lib/baidumapapi_v2_1_3.jar"/>
 	<classpathentry kind="output" path="bin/classes"/>
 </classpath>

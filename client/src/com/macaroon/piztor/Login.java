@@ -56,11 +56,16 @@ public class Login extends PiztorAct {
 
 		@Override
 		void enter(int e) {
+			/*
 			String user = edtUser.getText().toString();
 			String pass = edtPass.getText().toString();
 			long nowtime = System.currentTimeMillis();
 			System.out.println(user + " : " + pass + "\n");
 			AppMgr.transam.send(new ReqLogin(user, pass, nowtime, 5000));
+			*/
+			AppMgr.trigger(AppMgr.loginSuccess);
+			UserInfo.token = "asdf";
+			UserInfo.username = "nz";
 		}
 
 		@Override

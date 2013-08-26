@@ -2,6 +2,8 @@ package com.macaroon.piztor;
 
 import java.util.Timer;
 import java.util.TimerTask;
+import android.util.Log;
+import android.util.AttributeSet;
 import android.annotation.SuppressLint;
 import android.location.Location;
 import android.os.Bundle;
@@ -10,10 +12,47 @@ import android.os.Message;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.app.Activity;  
+import android.content.res.Configuration;  
+import android.widget.FrameLayout;  
+import android.widget.Toast;  
+import android.view.View.OnClickListener;
+
+import com.baidu.location.BDLocation;
+import com.baidu.location.BDLocationListener;
+import com.baidu.location.LocationClient;
+import com.baidu.location.LocationClientOption;
+
+import com.baidu.mapapi.map.LocationData;
+import com.baidu.mapapi.BMapManager;  
+import com.baidu.mapapi.map.MKMapViewListener;  
+import com.baidu.mapapi.map.MapController;  
+import com.baidu.mapapi.map.MapPoi;  
+import com.baidu.mapapi.map.MapView;
+import com.baidu.mapapi.map.MyLocationOverlay;
+import com.baidu.mapapi.map.PopupOverlay;
+import com.baidu.platform.comapi.basestruct.GeoPoint; 
 
 public class Main extends PiztorAct {
+
+	// about painting
+	BMapManager mBMapMan = null;
+	MapView mMapView = null;
+	private MapController mMapController = null;
+	// about locating
+	LocationClient mLocClient;
+	LocationData locData = null;
+	public MyLocationListener myListener = new MyLocationListener();
+	// about location layer
+	locationOverlay myLocationOverlay = null;
+	// about ui
+	Button requestLocButton = null;
+	boolean isRequest = false;
+	boolean isFirstLoc = true;
+
 	final static int SearchButtonPress = 1;
 	final static int FetchButtonPress = 2;
 	final static int FocuseButtonPress = 3;
@@ -202,10 +241,106 @@ public class Main extends PiztorAct {
 		actMgr.add(r[0], TimerFlush, r[0]);
 		actMgr.add(r[2], TimerFlush, r[2]);
 		autodate = new Timer();
-		AppMgr.transam.setHandler(fromTransam);
+		AppMgr.transam.setHandler(fromTransam);	
+		// draw map
+		
+		mBMapMan = new BMapManager(getApplication());
+		mBMapMan.init("728779592a12fd88a5eadb4da9fd42bc",null);
+		
 		setContentView(R.layout.activity_main);
-		ImageView view = (ImageView) findViewById(R.id.main_mapview);
-		view.setOnTouchListener(new MultiTouchListener());
+
+		requestLocButton = (Button) findViewById(R.id.requestLoc);
+		OnClickListener btnClickListener = new OnClickListener() {
+			
+			@Override
+			public void onClick(View v) {
+				requestLocClick();
+			}
+		};
+		requestLocButton.setOnClickListener(btnClickListener);
+
+		mMapView = (MapView)findViewById(R.id.bmapView);
+		mMapView.setBuiltInZoomControls(false);
+		mMapView.removeViewAt(1); 
+		mMapController = mMapView.getController();
+		
+		GeoPoint point = new GeoPoint((int)(31.032247* 1E6),(int)(121.445937* 1E6));
+		mMapController.setCenter(point);
+		mMapController.setZoom(17);
+		mMapController.setRotation(-22);
+
+		mLocClient = new LocationClient(this);
+		locData = new LocationData();
+		mLocClient.registerLocationListener(myListener);
+		LocationClientOption option = new LocationClientOption();
+		option.setOpenGps(true);
+		option.setCoorType("bd09ll"); 
+		option.setScanSpan(5000);
+		mLocClient.setLocOption(option);
+		mLocClient.start();
+
+		myLocationOverlay = new locationOverlay(mMapView);
+		myLocationOverlay.setData(locData);
+		System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"+locData.latitude+"    "+locData.longitude);
+		mMapView.getOverlays().add(myLocationOverlay);
+		myLocationOverlay.enableCompass();
+		mMapView.refresh();
+	}
+
+	public void requestLocClick() {
+		isRequest = true;
+		mLocClient.requestLocation();
+		Toast.makeText(Main.this, "Focusing...", Toast.LENGTH_SHORT).show();
+	}
+
+	public class MyLocationListener implements BDLocationListener {
+		
+		@Override
+		public void onReceiveLocation(BDLocation location) {
+			if (location == null) {
+				return;
+			}
+
+			locData.latitude = location.getLatitude();
+			locData.longitude = location.getLongitude();
+
+			locData.accuracy = location.getRadius();
+			locData.direction = location.getDerect();
+
+			myLocationOverlay.setData(locData);
+			mMapView.refresh();
+
+			if (isRequest || isFirstLoc) {
+				mMapController.animateTo(new GeoPoint((int)(locData.latitude * 1E6), (int)(locData.longitude * 1E6)));
+				isRequest = false;
+			}
+			isFirstLoc = false;
+		}
+		
+		@Override
+		public void onReceivePoi(BDLocation poiLocation) {
+			if (poiLocation == null) {
+				return;
+			}
+		}
+	}
+
+	public class locationOverlay extends MyLocationOverlay {
+		
+		public locationOverlay(MapView mapView) {
+			super(mapView);
+		}
+
+		/*
+		@Override
+		protected boolean dispatcTap() {
+			popupText.setBackgroundResource(R.drawable.popup);
+			popupText.setText("^_^");
+			pop.shoPopup(BMapUtil.getBitmapFromView(popupText),
+					new GeoPoint((int)(locData.latitude * 1E6),(int)(locData.longitude * 1E6)), 8);
+			return true;
+		}
+		*/
 	}
 
 	@Override
@@ -236,7 +371,27 @@ public class Main extends PiztorAct {
 		});
 		//autodate.schedule(new AutoUpdate(), 0, 5000);
 	}
-	
+
+	@Override
+	protected void onPause() {
+		mMapView.onPause();
+		super.onPause();
+	}
+
+	@Override
+	protected void onResume() {
+		mMapView.onResume();
+		super.onResume();
+	}
+
+	@Override
+	protected void onDestroy() {
+		if (mLocClient != null)
+			mLocClient.stop();
+		mMapView.destroy();
+		super.onDestroy();
+	}
+
 	@Override
 	public boolean onKeyDown(int keyCode, KeyEvent event) {
 		 if (keyCode == KeyEvent.KEYCODE_BACK) {
