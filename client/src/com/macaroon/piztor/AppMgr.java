@@ -1,6 +1,7 @@
 package com.macaroon.piztor;
 
 import java.util.HashMap;
+import java.util.HashSet;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
@@ -9,23 +10,45 @@ import android.os.Handler;
 @SuppressLint("UseSparseArrays")
 public class AppMgr {
 	// Status
-	public enum  ActivityStatus{
+	public enum ActivityStatus {
 		create, start, resume, restart, stop, pause, destroy
-	} 
+	}
+
 	static ActivityStatus status;
 	static PiztorAct nowAct;
-	//TODO fix
+	// TODO fix
 	static Handler fromTransam, fromGPS;
 	static Transam transam = null;
 	static Tracker tracker = null;
 	static Thread tTransam, tGPS;
-	//Event
-	
+	// Event
 	final static int noToken = 101;
 	final static int loginSuccess = 102;
-	
+	final static int errorToken = 103;
+	final static int hasToken = 104;
+	final static int toSettings = 105;
 	
 	static HashMap<Class<?>, HashMap<Integer, Class<?>>> mp;
+	static HashSet<PiztorAct> acts;
+
+	static void addAct(PiztorAct act) {
+		if (acts == null)
+			acts = new HashSet<PiztorAct>();
+		acts.add(act);
+	}
+
+	static void removeAct(PiztorAct act) {
+		if (acts.contains(act))
+			acts.remove(act);
+		else
+			System.out.println("Piztor has a bug!!!!");
+	}
+
+	static void exit() {
+		for (PiztorAct act : acts) {
+			act.finish();
+		}
+	}
 
 	static void setStatus(ActivityStatus st) {
 		status = st;
@@ -39,6 +62,8 @@ public class AppMgr {
 		else if (mp.get(nowAct.getClass()) == null)
 			System.out.println("second");
 		i.setClass(nowAct, mp.get(nowAct.getClass()).get(event));
+		if (event == errorToken)
+			UserInfo.token = null;
 		nowAct.startActivity(i);
 	}
 
@@ -82,8 +107,14 @@ public class AppMgr {
 		addStatus(InitAct.class);
 		addStatus(Login.class);
 		addStatus(Main.class);
+		addStatus(Settings.class);
 		addTransition(InitAct.class, noToken, Login.class);
 		addTransition(Login.class, loginSuccess, Main.class);
+		addTransition(Main.class, errorToken, Login.class);
+		addTransition(Settings.class, errorToken, Login.class);
+		addTransition(InitAct.class, hasToken, Main.class);
+		addTransition(InitAct.class, errorToken, Login.class);
+		addTransition(Main.class, toSettings, Settings.class);
 	}
 
 }

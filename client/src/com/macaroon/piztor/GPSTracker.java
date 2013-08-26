@@ -88,7 +88,7 @@ public class GPSTracker extends Service implements LocationListener, GpsStatus.L
 							longitude = location.getLongitude();
 
 							Log.d("Network", "Received Network Data");
-							//System.out.println("***From Network: "+latitude + "  " + longitude);
+							System.out.println("***From Network: "+latitude + "  " + longitude);
 						}
 					}
 				}// end of network section
@@ -108,7 +108,7 @@ public class GPSTracker extends Service implements LocationListener, GpsStatus.L
 								longitude = location.getLongitude();
 
 								Log.d("GPS", "Received GPS Data");
-								//System.out.println("***From GPS: "+latitude + "  " + longitude);
+								System.out.println("***From GPS: "+latitude + "  " + longitude);
 
 							}
 						}
