@@ -101,32 +101,26 @@ public class MapMaker extends Activity{
 		mMapView.getOverlays().add(mLocationOverlay);
 		mLocationOverlay.enableCompass();
 		mMapView.refresh();
+		mOverlay = new MyOverlay(context.getResources().getDrawable(R.drawable.circle_red), mMapView);
 	}
 	
 	public void UpdateMap(MapInfo mapInfo) {
 		/**
-		 * Update Location Overlay
-		 */
-		GeoPoint location = mapInfo.getMyInfo().getLocation();
-		LocationData locationData = new LocationData();
-		locationData.latitude = location.getLatitudeE6() / 1e6;
-		locationData.longitude = location.getLongitudeE6() / 1e6;
-		mLocationOverlay.setData(locationData);
-		mMapView.refresh();
-		
-		/**
 		 * Update location of others
 		 */
-		mOverlay.removeAll();
+		//if (mOverlay != null)
+			mOverlay.removeAll();
+		mOverlay = new MyOverlay(context.getResources().getDrawable(R.drawable.circle_red), mMapView);
 		//mMapView.refresh();
 		GeoPoint p;
 		Vector<UserInfo> allUsers = mapInfo.getVector();
-
+		System.out.println("SSSSSSSSSSSSSSSSize       "+allUsers.size());
 		for(int i = 0; i < allUsers.size(); i++) {
+			if (allUsers.get(i).uid == Infomation.myInfo.uid) continue;
 			p = new GeoPoint((int)(allUsers.get(i).getLatitude() * 1E6)
 					,(int)(allUsers.get(i).getLongitude() * 1E6));
 			curItem = new OverlayItem(p, "^_^", "");
-			curItem.setMarker(context.getResources().getDrawable(R.drawable.icon_marka));
+			curItem.setMarker(context.getResources().getDrawable(R.drawable.circle_red));
 			mOverlay.addItem(curItem);
 		}
 		mItems = new ArrayList<OverlayItem>();

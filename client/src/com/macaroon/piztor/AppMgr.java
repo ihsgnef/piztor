@@ -18,8 +18,6 @@ public class AppMgr {
 	private static final String strKey = "8a0ae50048d103b2b8b12b7066f4ea7d";
     static BMapManager mBMapManager = null;
 	
-	
-	
 	// Status
 	public enum ActivityStatus {
 		create, start, resume, restart, stop, pause, destroy
@@ -83,6 +81,8 @@ public class AppMgr {
 				i.putExtra("status", true);
 			else i.putExtra("status", false);
 		}
+		if (event == loginSuccess) mBMapManager.start();
+ 		if (event == logout) mBMapManager.stop();
 		nowAct.startActivity(i);
 	}
 

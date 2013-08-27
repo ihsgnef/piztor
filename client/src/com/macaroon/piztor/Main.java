@@ -40,7 +40,7 @@ public class Main extends PiztorAct {
 	public MyLocationListener myListener = new MyLocationListener();
 
 	ImageButton btnSearch, btnFetch, btnFocus, btnSettings;
-	Timer autodate;
+	//Timer autodate;
 	MapInfo mapInfo;
 	/*
 	 * @SuppressLint("HandlerLeak") Handler fromGPS = new Handler() {
@@ -91,7 +91,7 @@ public class Main extends PiztorAct {
 					if (r.uid == Infomation.myInfo.uid) {
 						Infomation.myInfo.gid = r.gid;
 						try {
-							autodate.schedule(new AutoUpdate(), 0, 5000);
+							//autodate.schedule(new AutoUpdate(), 0, 5000);
 						} catch (Exception e) {
 							e.printStackTrace();
 						}
@@ -138,7 +138,8 @@ public class Main extends PiztorAct {
 
 	// TODO flush map view
 	void flushMap() {
-
+		if (mapMaker != null)
+			mapMaker.UpdateMap(AppMgr.mapInfo);
 	}
 
 	public class MyLocationListener implements BDLocationListener {
@@ -155,7 +156,8 @@ public class Main extends PiztorAct {
 			locData.direction = location.getDerect();
 
 			mapMaker.UpdateLocationOverlay(locData, false);
-
+			if (Infomation.token != null)
+				AppMgr.transam.send(new ReqUpdate(Infomation.token, Infomation.username, locData.latitude, locData.longitude, System.currentTimeMillis(), 2000));
 		}
 
 		@Override
@@ -224,10 +226,10 @@ public class Main extends PiztorAct {
 				requesLocation(Infomation.myInfo.gid);
 				break;
 			case FocuseButtonPress:
-				// TODO setFocus
+				mapMaker.UpdateLocationOverlay(locData, true);
 				break;
 			case SuccessFetch:
-				requesLocation(Infomation.myInfo.gid);
+				flushMap();
 				break;
 			default:
 				break;
@@ -279,7 +281,7 @@ public class Main extends PiztorAct {
 		actMgr.add(focusStatus, mapViewtouched, startStatus);
 		actMgr.add(focusStatus, SuccessFetch, focusStatus);
 		actMgr.add(focusStatus, Fetch, focusStatus);
-		autodate = new Timer();
+		//autodate = new Timer();
 		flushMap();
 		// ImageView view = (ImageView) findViewById(R.id.main_mapview);
 		// view.setOnTouchListener(new MultiTouchListener());
@@ -342,7 +344,7 @@ public class Main extends PiztorAct {
 	@Override
 	public void onStop() {
 		super.onStop();
-		autodate.cancel();
+		//autodate.cancel();
 	}
 
 	@Override

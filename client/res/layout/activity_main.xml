@@ -31,12 +31,4 @@
         android:layout_below="@+id/main_headbar_layout"
         android:clickable="true" />
 
-    <Button
-        android:id="@+id/requestLoc"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_alignParentRight="true"
-        android:layout_below="@+id/main_headbar_layout"
-        android:text="Button" />
-
 </RelativeLayout>
