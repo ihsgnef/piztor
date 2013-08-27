@@ -9,10 +9,10 @@ import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Toast;
 
 public class Login extends PiztorAct {
 
-	ActMgr actMgr;
 	Button btnLogin;
 	EditText edtUser, edtPass;
 
@@ -30,9 +30,13 @@ public class Login extends PiztorAct {
 			}
 			if (m.what == 0) {
 				ResLogin res = (ResLogin) m.obj;
-				UserInfo.token = res.t;
-				UserInfo.id = res.uid;
-				UserInfo.username = edtUser.getText().toString();
+				if (res.s == 1) {
+					actMgr.trigger(loginFailed);
+					return;
+				}
+				Infomation.token = res.t;
+				Infomation.myInfo.uid = res.uid;
+				Infomation.username = edtUser.getText().toString();
 				System.out.println(res.s + "   :!!!    " + res.t);
 				actMgr.trigger(AppMgr.loginSuccess);
 			} else {
@@ -56,21 +60,18 @@ public class Login extends PiztorAct {
 
 		@Override
 		void enter(int e) {
-			/*
 			String user = edtUser.getText().toString();
 			String pass = edtPass.getText().toString();
 			long nowtime = System.currentTimeMillis();
 			System.out.println(user + " : " + pass + "\n");
 			AppMgr.transam.send(new ReqLogin(user, pass, nowtime, 5000));
-			*/
-			AppMgr.trigger(AppMgr.loginSuccess);
-			UserInfo.token = "asdf";
-			UserInfo.username = "nz";
 		}
 
 		@Override
 		void leave(int e) {
-
+			Toast toast = Toast.makeText(getApplicationContext(),
+					"login failed", Toast.LENGTH_LONG);
+			toast.show();
 		}
 
 	}
@@ -111,11 +112,11 @@ public class Login extends PiztorAct {
 
 	@Override
 	public boolean onKeyDown(int keyCode, KeyEvent event) {
-		 if (keyCode == KeyEvent.KEYCODE_BACK) {
-			 AppMgr.exit();
-			 return true;
-		 }
-		 return super.onKeyDown(keyCode, event);
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			AppMgr.exit();
+			return true;
+		}
+		return super.onKeyDown(keyCode, event);
 	}
 
 	@Override

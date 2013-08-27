@@ -2,52 +2,35 @@ package com.macaroon.piztor;
 
 import java.util.Timer;
 import java.util.TimerTask;
-import android.util.Log;
-import android.util.AttributeSet;
+
 import android.annotation.SuppressLint;
-import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.View;
-import android.widget.Button;
 import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.app.Activity;  
-import android.content.res.Configuration;  
-import android.graphics.drawable.Drawable;
-import android.widget.FrameLayout;  
-import android.widget.Toast;  
-import android.view.View.OnClickListener;
-import android.widget.RadioGroup;
-import android.widget.RadioGroup.OnCheckedChangeListener;
+import android.widget.Toast;
 
 import com.baidu.location.BDLocation;
 import com.baidu.location.BDLocationListener;
 import com.baidu.location.LocationClient;
 import com.baidu.location.LocationClientOption;
-
 import com.baidu.mapapi.map.LocationData;
-import com.baidu.mapapi.BMapManager;  
-import com.baidu.mapapi.MKGeneralListener;
-import com.baidu.mapapi.map.MKMapViewListener;  
-import com.baidu.mapapi.map.MapController;  
-import com.baidu.mapapi.map.MapPoi;  
 import com.baidu.mapapi.map.MapView;
-import com.baidu.mapapi.map.MyLocationOverlay;
-import com.baidu.mapapi.map.PopupOverlay;
-import com.baidu.platform.comapi.basestruct.GeoPoint; 
 
 public class Main extends PiztorAct {
+	final static int SearchButtonPress = 1;
+	final static int FocuseButtonPress = 3;
+	final static int SuccessFetch = 4;
+	final static int FailedFetch = 5;
+	final static int Fetch = 6;
+	final static int mapViewtouched = 7;
 
-	/**
-	 * Painting component
-	 */
-	BMapManager mBMapManager = null;
-	MapView mMapView = null;
-	private MapController mMapController = null;
+	MapMaker mapMaker = null;
+	MapView mMapView;
 
 	/**
 	 * Locating component
@@ -56,32 +39,26 @@ public class Main extends PiztorAct {
 	LocationData locData = null;
 	public MyLocationListener myListener = new MyLocationListener();
 
-	/**
-	 * My location layer
-	 */
-	locationOverlay myLocationOverlay = null;
-
-	/**
-	 * Request location button
-	 */
-	boolean isFirstLoc = true;
-
-	final static int SearchButtonPress = 1;
-	final static int FetchButtonPress = 2;
-	final static int FocuseButtonPress = 3;
-	final static int SuccessFetch = 4;
-	final static int FailedFetch = 5;
-	final static int TimerFlush = 6;
-	ActMgr actMgr;
 	ImageButton btnSearch, btnFetch, btnFocus, btnSettings;
 	Timer autodate;
+	MapInfo mapInfo;
+	/*
+	 * @SuppressLint("HandlerLeak") Handler fromGPS = new Handler() {
+	 * 
+	 * @Override public void handleMessage(Message m) { if (m.what != 0) {
+	 * Location l = (Location) m.obj; if (l == null)
+	 * System.out.println("fuck!!!"); else { ReqUpdate r = new
+	 * ReqUpdate(Infomation.token, Infomation.username, l.getLatitude(),
+	 * l.getLongitude(), System.currentTimeMillis(), 1000);
+	 * AppMgr.transam.send(r); } } } };
+	 */
 
 	@SuppressLint("HandlerLeak")
-	Handler fromTransam = new Handler() {
+	Handler handler = new Handler() {
 		@Override
 		public void handleMessage(Message m) {
 			switch (m.what) {
-			case 1:
+			case 1:// 上传自己信息成功or失败
 				ResUpdate update = (ResUpdate) m.obj;
 				if (update.s == 0)
 					System.out.println("update success");
@@ -90,30 +67,51 @@ public class Main extends PiztorAct {
 					actMgr.trigger(AppMgr.errorToken);
 				}
 				break;
-			case 2:
+			case 2:// 得到别人的信息
 				ResLocation location = (ResLocation) m.obj;
 				if (location.s == 0) {
-					for (int i = 0; i < location.n; i++) {
-						System.out.println(location.l.get(i).i + " : "
-								+ location.l.get(i).lat + " "
-								+ location.l.get(i).lot);
+					mapInfo.clear();
+					for (Rlocation i : location.l) {
+						System.out.println(i.i + " : " + i.lat + " " + i.lot);
+						UserInfo info = new UserInfo(i.i);
+						info.setLocation(i.lat, i.lot);
+						mapInfo.addUserInfo(info);
 					}
 					actMgr.trigger(SuccessFetch);
 				} else {
-					System.out
-							.println("resquest for location must be wrong!!!");
+					System.out.println("resquest for location failed!");
 					actMgr.trigger(AppMgr.errorToken);
 				}
 				break;
-			case 3:
+			case 3:// 得到用户信息
 				ResUserinfo r = (ResUserinfo) m.obj;
 				if (r.s == 0) {
 					System.out.println("id : " + r.uid + " sex :  " + r.sex
 							+ " group : " + r.gid);
+					if (r.uid == Infomation.myInfo.uid) {
+						Infomation.myInfo.gid = r.gid;
+						try {
+							autodate.schedule(new AutoUpdate(), 0, 5000);
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					} else {
+						UserInfo user = mapInfo.getUserInfo(r.uid);
+						if (user != null)
+							user.setInfo(r.gid, r.sex);
+						else
+							System.out.println("fuck!!!!");
+					}
+					flushMap();
 				} else {
 					System.out.println("reqest for userInfo must be wrong!!!");
 					actMgr.trigger(AppMgr.errorToken);
 				}
+				break;
+			case 4:// 登出
+				Toast toast = Toast.makeText(getApplicationContext(),
+						"logout failed", Toast.LENGTH_LONG);
+				toast.show();
 				break;
 			default:
 				break;
@@ -125,16 +123,14 @@ public class Main extends PiztorAct {
 		switch (t) {
 		case SearchButtonPress:
 			return "Search Button Press";
-		case FetchButtonPress:
-			return "Fetch Button Press";
+		case Fetch:
+			return "Fetch ";
 		case FocuseButtonPress:
 			return "Focuse Button Press";
 		case SuccessFetch:
 			return "Success Fetch";
 		case FailedFetch:
 			return "Failed Fetch";
-		case TimerFlush:
-			return "TimerFlush";
 		default:
 			return "Fuck!!!";
 		}
@@ -142,143 +138,10 @@ public class Main extends PiztorAct {
 
 	// TODO flush map view
 	void flushMap() {
+
 	}
-
-	class StartStatus extends ActStatus {
-
-		@Override
-		void enter(int e) {
-			System.out.println("enter start status!!!!");
-			if (e == ActMgr.Create) {
-				AppMgr.transam.send(new ReqUserinfo(UserInfo.token,
-						UserInfo.username, UserInfo.id, System
-								.currentTimeMillis(), 5000));
-			}
-
-			if (e == TimerFlush) {
-				ReqLocation r = new ReqLocation(UserInfo.token,
-						UserInfo.username, 1, System.currentTimeMillis(), 1000);
-				AppMgr.transam.send(r);
-			}
-			if (e == SuccessFetch)
-				flushMap();
-		}
-
-		@Override
-		void leave(int e) {
-			System.out.println("leave start status!!!! because" + cause(e));
-		}
-	}
-
-	class FetchStatus extends ActStatus {
-
-		@Override
-		void enter(int e) {
-			System.out.println("enter Fetch status!!!!");
-			if (e == FetchButtonPress) {
-				ReqLocation r = new ReqLocation(UserInfo.token,
-						UserInfo.username, 1, System.currentTimeMillis(), 1000);
-				AppMgr.transam.send(r);
-			}
-		}
-
-		@Override
-		void leave(int e) {
-			System.out.println("leave fetch status!!!! because" + cause(e));
-		}
-	}
-
-	class FocusStatus extends ActStatus {
-
-		@Override
-		void enter(int e) {
-			System.out.println("enter focus status!!!!");
-		}
-
-		@Override
-		void leave(int e) {
-			System.out.println("leave focus status!!!! because" + cause(e));
-		}
-	}
-
-	class AutoUpdate extends TimerTask {
-
-		@Override
-		public void run() {
-			actMgr.trigger(Main.TimerFlush);
-		}
-	}
-
-	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-	
-		id = "Main";
-		super.onCreate(savedInstanceState);
-		
-		//AppMgr.tracker.setHandler(fromGPS);
-		ActStatus[] r = new ActStatus[3];
-		r[0] = new StartStatus();
-		r[1] = new FetchStatus();
-		r[2] = new FocusStatus();
-		actMgr = new ActMgr(this, r[0], r);
-		actMgr.add(r[0], FocuseButtonPress, r[2]);
-		actMgr.add(r[0], FetchButtonPress, r[1]);
-		actMgr.add(r[0], SuccessFetch, r[0]);
-		actMgr.add(r[1], FetchButtonPress, r[0]);
-		actMgr.add(r[1], FailedFetch, r[0]);
-		actMgr.add(r[1], SuccessFetch, r[0]);
-		actMgr.add(r[2], FocuseButtonPress, r[0]);
-		actMgr.add(r[0], TimerFlush, r[0]);
-		actMgr.add(r[2], TimerFlush, r[2]);
-		autodate = new Timer();
-		AppMgr.transam.setHandler(fromTransam);	
-		
-		/*
-		mBMapManager = new BMapManager(getApplicationContext());
-		mBMapManager.init("8a0ae50048d103b2b8b12b7066f4ea7d",new MKGeneralListener(){
-			@Override
-			public void onGetNetworkState(int arg0) {
-				System.out.println("Network !!!!!!     " + arg0);
-			}
-			@Override
-			public void onGetPermissionState(int arg0) {
-				System.out.println("Permission !!!!!!!     " +  arg0);
-			}});
-		
-		mBMapManager.start();
-		*/Log.d("你妹","xxxxxxxxx");
-		setContentView(R.layout.activity_main);
-		Log.d("你妹","xxxxxxxxx");
-		/**
-		 * Initialize MapView
-		 */
-		mMapView = (MapView)findViewById(R.id.bmapView);
-		mMapController = mMapView.getController();
-		mMapView.setBuiltInZoomControls(false);	
-		GeoPoint point = new GeoPoint((int)(31.032247* 1E6),(int)(121.445937* 1E6));
-		mMapController.setCenter(point);
-		mMapController.setZoom(17);
-		mMapController.setRotation(-22);
-
-		mLocClient = new LocationClient(this);
-		locData = new LocationData();
-		mLocClient.registerLocationListener(myListener);
-		LocationClientOption option = new LocationClientOption();
-		option.setOpenGps(true);
-		option.setCoorType("bd09ll"); 
-		option.setScanSpan(5000);
-		mLocClient.setLocOption(option);
-		mLocClient.start();
-		myLocationOverlay = new locationOverlay(mMapView);
-		myLocationOverlay.setData(locData);
-		mMapView.getOverlays().add(myLocationOverlay);
-		myLocationOverlay.enableCompass();
-		mMapView.refresh();
-	}
-
 
 	public class MyLocationListener implements BDLocationListener {
-
 		@Override
 		public void onReceiveLocation(BDLocation location) {
 			Log.d("GPS", "Gotten");
@@ -288,19 +151,13 @@ public class Main extends PiztorAct {
 
 			locData.latitude = location.getLatitude();
 			locData.longitude = location.getLongitude();
-
 			locData.accuracy = location.getRadius();
 			locData.direction = location.getDerect();
 
-			myLocationOverlay.setData(locData);
-			mMapView.refresh();
+			mapMaker.UpdateLocationOverlay(locData, false);
 
-			if (isFirstLoc) {
-				mMapController.animateTo(new GeoPoint((int)(locData.latitude * 1E6), (int)(locData.longitude * 1E6)));
-			}
-			isFirstLoc = false;
 		}
-		
+
 		@Override
 		public void onReceivePoi(BDLocation poiLocation) {
 			if (poiLocation == null) {
@@ -309,11 +166,137 @@ public class Main extends PiztorAct {
 		}
 	}
 
-	public class locationOverlay extends MyLocationOverlay {
+	class StartStatus extends ActStatus {
 
-		public locationOverlay(MapView mapView) {
-			super(mapView);
+		@Override
+		void enter(int e) {
+			System.out.println("enter start status!!!!");
+			if (e == ActMgr.Create) {
+				System.out.println(Infomation.token + "  "
+						+ Infomation.username + "   " + Infomation.myInfo.uid);
+				AppMgr.transam.send(new ReqUserinfo(Infomation.token,
+						Infomation.username, Infomation.myInfo.uid, System
+								.currentTimeMillis(), 5000));
+				// TODO flush mapinfo.myinfo
+			}
+
+			if (e == Fetch) {
+				requesLocation(Infomation.myInfo.gid);
+			}
+			if (e == SuccessFetch)
+				flushMap();
 		}
+
+		@Override
+		void leave(int e) {
+			System.out.println("leave start status!!!! because" + cause(e));
+		}
+
+	}
+
+	class FetchStatus extends ActStatus {
+
+		@Override
+		void enter(int e) {
+			System.out.println("enter Fetch status!!!!");
+			if (e == Fetch) {
+				requesLocation(Infomation.myInfo.gid);
+			}
+			if (e == SuccessFetch) {
+				flushMap();
+			}
+		}
+
+		@Override
+		void leave(int e) {
+			System.out.println("leave fetch status!!!! because" + cause(e));
+		}
+
+	}
+
+	class FocusStatus extends ActStatus {
+
+		@Override
+		void enter(int e) {
+			// TODO
+			switch (e) {
+			case Fetch:
+				requesLocation(Infomation.myInfo.gid);
+				break;
+			case FocuseButtonPress:
+				// TODO setFocus
+				break;
+			case SuccessFetch:
+				requesLocation(Infomation.myInfo.gid);
+				break;
+			default:
+				break;
+			}
+			System.out.println("enter focus status!!!!");
+		}
+
+		@Override
+		void leave(int e) {
+			// TODO leave focus
+			System.out.println("leave focus status!!!! because" + cause(e));
+		}
+
+	}
+
+	void requesLocation(int gid) {
+		ReqLocation r = new ReqLocation(Infomation.token, Infomation.username,
+				gid, System.currentTimeMillis(), 2000);
+		System.out.println("get others infomation!!!");
+		AppMgr.transam.send(r);
+	}
+
+	class AutoUpdate extends TimerTask {
+		@Override
+		public void run() {
+			actMgr.trigger(Main.Fetch);
+		}
+	}
+
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		id = "Main";
+		super.onCreate(savedInstanceState);
+		mapInfo = AppMgr.mapInfo;
+		ActStatus[] r = new ActStatus[3];
+		ActStatus startStatus = r[0] = new StartStatus();
+		ActStatus fetchStatus = r[1] = new FetchStatus();
+		ActStatus focusStatus = r[2] = new FocusStatus();
+		AppMgr.transam.setHandler(handler);
+		actMgr = new ActMgr(this, startStatus, r);
+		actMgr.add(startStatus, FocuseButtonPress, focusStatus);
+		actMgr.add(startStatus, Fetch, fetchStatus);
+		actMgr.add(startStatus, SuccessFetch, startStatus);
+		actMgr.add(startStatus, Fetch, startStatus);
+		actMgr.add(fetchStatus, Fetch, startStatus);
+		actMgr.add(fetchStatus, FailedFetch, startStatus);
+		actMgr.add(fetchStatus, SuccessFetch, startStatus);
+		actMgr.add(focusStatus, FocuseButtonPress, startStatus);
+		actMgr.add(focusStatus, mapViewtouched, startStatus);
+		actMgr.add(focusStatus, SuccessFetch, focusStatus);
+		actMgr.add(focusStatus, Fetch, focusStatus);
+		autodate = new Timer();
+		flushMap();
+		// ImageView view = (ImageView) findViewById(R.id.main_mapview);
+		// view.setOnTouchListener(new MultiTouchListener());
+		setContentView(R.layout.activity_main);
+		mMapView = (MapView) findViewById(R.id.bmapView);
+		mapMaker = new MapMaker(mMapView, getApplicationContext());
+		mapMaker.InitMap();
+		mLocClient = new LocationClient(this);
+		locData = new LocationData();
+		mLocClient.registerLocationListener(myListener);
+		LocationClientOption option = new LocationClientOption();
+		option.setOpenGps(true);
+		option.setCoorType("bd09ll");
+		option.setScanSpan(5000);
+		mLocClient.setLocOption(option);
+		mLocClient.start();
+		mapMaker.UpdateLocationOverlay(locData, false);
 	}
 
 	@Override
@@ -324,16 +307,15 @@ public class Main extends PiztorAct {
 		btnSearch = (ImageButton) findViewById(R.id.footbar_btn_search);
 		btnSettings = (ImageButton) findViewById(R.id.footbar_btn_settings);
 		btnFetch.setOnClickListener(new View.OnClickListener() {
-
 			@Override
 			public void onClick(View arg0) {
-				//	actMgr.trigger(FetchButtonPress);
+				actMgr.trigger(Fetch);
 			}
 		});
 		btnFocus.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				//	actMgr.trigger(FocuseButtonPress);
+				actMgr.trigger(FocuseButtonPress);
 			}
 		});
 		btnSettings.setOnClickListener(new View.OnClickListener() {
@@ -342,7 +324,34 @@ public class Main extends PiztorAct {
 				actMgr.trigger(AppMgr.toSettings);
 			}
 		});
-		//autodate.schedule(new AutoUpdate(), 0, 5000);
+
+	}
+
+	@Override
+	protected void onResume() {
+		mapMaker.onResume();
+		super.onResume();
+	}
+
+	@Override
+	protected void onPause() {
+		mapMaker.onPause();
+		super.onPause();
+	}
+
+	@Override
+	public void onStop() {
+		super.onStop();
+		autodate.cancel();
+	}
+
+	@Override
+	protected void onDestroy() {
+		if (mLocClient != null) {
+			mLocClient.stop();
+		}
+		mapMaker.onDestroy();
+		super.onDestroy();
 	}
 
 	@Override
@@ -355,31 +364,23 @@ public class Main extends PiztorAct {
 	}
 
 	@Override
-    protected void onPause() {
-        mMapView.onPause();
-        super.onPause();
-    }
-    
-    @Override
-    protected void onResume() {
-        mMapView.onResume();
-        super.onResume();
-    }
-    
-    @Override
-    protected void onDestroy() {
-    	//退出时销毁定位
-        if (mLocClient != null)
-            mLocClient.stop();
-        mMapView.destroy();
-        super.onDestroy();
-    }
-	
-	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
 		getMenuInflater().inflate(R.menu.main, menu);
 		return false;
+	}
+
+	@Override
+	protected void onSaveInstanceState(Bundle outState) {
+		super.onSaveInstanceState(outState);
+		mMapView.onSaveInstanceState(outState);
+
+	}
+
+	@Override
+	protected void onRestoreInstanceState(Bundle savedInstanceState) {
+		super.onRestoreInstanceState(savedInstanceState);
+		mMapView.onRestoreInstanceState(savedInstanceState);
 	}
 
 }

@@ -10,14 +10,14 @@ public class InitAct extends PiztorAct {
 		id = "initAct";
 		super.onCreate(savedInstanceState);
 		AppMgr.init(getApplicationContext());
-		AppMgr.transam.setTimeOutTime(10000);
+		AppMgr.transam.setTimeOutTime(5000);
 		setContentView(R.layout.activity_init);
 	}
 	
 	@Override
 	protected void onStart() {
 		super.onStart();
-		if (UserInfo.token == null)
+		if (Infomation.token == null)
 			AppMgr.trigger(AppMgr.noToken);
 		else {
 			//TODO jump to main

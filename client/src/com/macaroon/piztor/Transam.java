@@ -10,7 +10,7 @@ import android.annotation.SuppressLint;
 import android.os.Handler;
 import android.os.Message;
 
-//       Piztor Transmission Protocol v0.4        //
+//       Piztor Transmission Protocol v0.4a       //
 
 //------------------------------------------------//
 //												  //
@@ -19,6 +19,7 @@ import android.os.Message;
 //              1   for   updateLocation		  //
 //              2   for   locationRequest		  //
 //			    3   for   userinfo				  //
+//              4   for   logout                  //
 //											      //
 //     ----------I'm the division line--------    //
 //                                                //
@@ -31,6 +32,7 @@ import android.os.Message;
 //update -- token & username & latitude & longitude//
 //	  getlocation -- token & username & groupid   //
 //    getuserinfo -- token & userinfo & userid    //
+//       logout -- token & username               //
 //												  //
 //    ----------I'm the division line--------     //
 //                                                //
@@ -41,6 +43,7 @@ import android.os.Message;
 //       entry  -- userid & latitude & longitude  //
 //                                                //
 //  getuserinfo -- status & uid & gid & gender    //
+//            logout -- status                    //
 //												  //
 //          status -- 0 for success               //
 //					  1 for failed/invalid        //				
@@ -53,7 +56,7 @@ public class Transam implements Runnable {
 	public boolean flag = true;
 	public int cnt = 4;				//retry times
 	public int tcnt;				//current remain retry times
-	public int retime = 1000;		//timeout time
+	public int retime = 10000;		//timeout time
 	Res res;
 	Req req;
 	public int p;					//port
@@ -123,7 +126,7 @@ public class Transam implements Runnable {
 			try {
 				SocketClient client = new SocketClient(i,p,retime);
 				int out = client.sendMsg(req,recall);
-				if(out == 0){
+				if(out == 0){													
 					client.closeSocket();
 					running = false;
 				}

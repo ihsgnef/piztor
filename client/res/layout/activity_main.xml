@@ -39,26 +39,4 @@
         android:layout_below="@+id/main_headbar_layout"
         android:text="Button" />
 
-    <RadioGroup
-        android1:id="@+id/radioGroup"
-        android1:layout_width="wrap_content"
-        android1:layout_height="wrap_content"
-        android1:layout_alignParentLeft="true"
-        android1:layout_alignTop="@+id/bmapView"
-        android1:layout_marginTop="14dp" >
-
-        <RadioButton
-            android1:id="@+id/radio0"
-            android1:layout_width="wrap_content"
-            android1:layout_height="wrap_content"
-            android1:checked="true"
-            android1:text="RadioButton" />
-
-        <RadioButton
-            android1:id="@+id/radio1"
-            android1:layout_width="wrap_content"
-            android1:layout_height="wrap_content"
-            android1:text="RadioButton" />
-    </RadioGroup>
-
 </RelativeLayout>
