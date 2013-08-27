@@ -3,12 +3,24 @@ package com.macaroon.piztor;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import com.baidu.mapapi.BMapManager;
+import com.baidu.mapapi.MKGeneralListener;
+import com.baidu.mapapi.map.MKEvent;
+
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
+import android.util.Log;
+import android.widget.Toast;
 
 @SuppressLint("UseSparseArrays")
 public class AppMgr {
+	
+	private static final String strKey = "8a0ae50048d103b2b8b12b7066f4ea7d";
+    static BMapManager mBMapManager = null;
+	
+	
 	// Status
 	public enum ActivityStatus {
 		create, start, resume, restart, stop, pause, destroy
@@ -93,16 +105,31 @@ public class AppMgr {
 		mp.put(a, new HashMap<Integer, Class<?>>());
 	}
 
-	static void init() {
+	static void init(Context context) {
+		
+		if (mBMapManager == null) {
+			mBMapManager = new BMapManager(context);
+			mBMapManager.init(strKey, new MKGeneralListener(){
+				@Override
+		        public void onGetNetworkState(int iError) {
+		            Log.d("Network","failure");
+		        }
+
+		        @Override
+		        public void onGetPermissionState(int iError) {
+		            Log.d("Permission","wrong key");
+		        }
+			});
+		}
 		mp = new HashMap<Class<?>, HashMap<Integer, Class<?>>>();
 		fromTransam = new Handler();
 		transam = new Transam(UserInfo.ip, UserInfo.port, fromTransam);
-		fromGPS = new Handler();
-		tracker = new Tracker(nowAct.getApplicationContext(), fromGPS);
+		//fromGPS = new Handler();
+		//tracker = new Tracker(nowAct.getApplicationContext(), fromGPS);
 		tTransam = new Thread(transam);
 		tTransam.start();
-		tGPS = new Thread(tracker);
-		tGPS.start();
+		//tGPS = new Thread(tracker);
+		//tGPS.start();
 		System.out.println("!!!!!!");
 		addStatus(InitAct.class);
 		addStatus(Login.class);

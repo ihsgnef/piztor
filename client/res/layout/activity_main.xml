@@ -1,39 +1,64 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-	android:layout_width="match_parent"
-	android:layout_height="wrap_content"
-	android:background="@android:color/white">
-	<RelativeLayout 
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:layout_alignParentTop="true"
-		android:id="@+id/main_headbar_layout"
-		>
-		<include layout="@layout/main_headbar"/>
-	</RelativeLayout>
-	
-	<LinearLayout
-		android:id="@+id/main_footbar_layout" 
-		android:layout_width="wrap_content"
-		android:layout_height="wrap_content"
-		android:layout_alignParentBottom="true"
-		>
-		<include layout="@layout/main_footbar"/>
-	</LinearLayout>
-	
-	<com.baidu.mapapi.map.MapView android:id="@+id/bmapView"
-	android:layout_width="fill_parent"
-	android:layout_height="fill_parent" 
-	android:clickable="true"
-	android:layout_below="@+id/main_headbar_layout"
-	android:layout_above="@+id/main_footbar_layout"/>
+    xmlns:android1="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@android:color/white" >
 
-	<Button
-	    android:id="@+id/requestLoc"
-	    android:layout_width="wrap_content"
-	    android:layout_height="wrap_content"
-	    android:layout_alignParentRight="true"
-	    android:layout_below="@+id/main_headbar_layout"
-	    android:text="Button" />
-	
+    <RelativeLayout
+        android:id="@+id/main_headbar_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true" >
+
+        <include layout="@layout/main_headbar" />
+    </RelativeLayout>
+
+    <LinearLayout
+        android:id="@+id/main_footbar_layout"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true" >
+
+        <include layout="@layout/main_footbar" />
+    </LinearLayout>
+
+    <com.baidu.mapapi.map.MapView
+        android:id="@+id/bmapView"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:layout_above="@+id/main_footbar_layout"
+        android:layout_below="@+id/main_headbar_layout"
+        android:clickable="true" />
+
+    <Button
+        android:id="@+id/requestLoc"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentRight="true"
+        android:layout_below="@+id/main_headbar_layout"
+        android:text="Button" />
+
+    <RadioGroup
+        android1:id="@+id/radioGroup"
+        android1:layout_width="wrap_content"
+        android1:layout_height="wrap_content"
+        android1:layout_alignParentLeft="true"
+        android1:layout_alignTop="@+id/bmapView"
+        android1:layout_marginTop="14dp" >
+
+        <RadioButton
+            android1:id="@+id/radio0"
+            android1:layout_width="wrap_content"
+            android1:layout_height="wrap_content"
+            android1:checked="true"
+            android1:text="RadioButton" />
+
+        <RadioButton
+            android1:id="@+id/radio1"
+            android1:layout_width="wrap_content"
+            android1:layout_height="wrap_content"
+            android1:text="RadioButton" />
+    </RadioGroup>
+
 </RelativeLayout>

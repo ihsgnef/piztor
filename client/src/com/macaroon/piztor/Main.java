@@ -17,9 +17,12 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.app.Activity;  
 import android.content.res.Configuration;  
+import android.graphics.drawable.Drawable;
 import android.widget.FrameLayout;  
 import android.widget.Toast;  
 import android.view.View.OnClickListener;
+import android.widget.RadioGroup;
+import android.widget.RadioGroup.OnCheckedChangeListener;
 
 import com.baidu.location.BDLocation;
 import com.baidu.location.BDLocationListener;
@@ -28,6 +31,7 @@ import com.baidu.location.LocationClientOption;
 
 import com.baidu.mapapi.map.LocationData;
 import com.baidu.mapapi.BMapManager;  
+import com.baidu.mapapi.MKGeneralListener;
 import com.baidu.mapapi.map.MKMapViewListener;  
 import com.baidu.mapapi.map.MapController;  
 import com.baidu.mapapi.map.MapPoi;  
@@ -38,19 +42,28 @@ import com.baidu.platform.comapi.basestruct.GeoPoint;
 
 public class Main extends PiztorAct {
 
-	// about painting
-	BMapManager mBMapMan = null;
+	/**
+	 * Painting component
+	 */
+	BMapManager mBMapManager = null;
 	MapView mMapView = null;
 	private MapController mMapController = null;
-	// about locating
+
+	/**
+	 * Locating component
+	 */
 	LocationClient mLocClient;
 	LocationData locData = null;
 	public MyLocationListener myListener = new MyLocationListener();
-	// about location layer
+
+	/**
+	 * My location layer
+	 */
 	locationOverlay myLocationOverlay = null;
-	// about ui
-	Button requestLocButton = null;
-	boolean isRequest = false;
+
+	/**
+	 * Request location button
+	 */
 	boolean isFirstLoc = true;
 
 	final static int SearchButtonPress = 1;
@@ -62,23 +75,6 @@ public class Main extends PiztorAct {
 	ActMgr actMgr;
 	ImageButton btnSearch, btnFetch, btnFocus, btnSettings;
 	Timer autodate;
-	@SuppressLint("HandlerLeak")
-	Handler fromGPS = new Handler() {
-		@Override
-		public void handleMessage(Message m) {
-			if (m.what != 0) {
-				Location l = (Location) m.obj;
-				if (l == null)
-					System.out.println("fuck!!!");
-				else {
-					ReqUpdate r = new ReqUpdate(UserInfo.token,
-							UserInfo.username, l.getLatitude(),
-							l.getLongitude(), System.currentTimeMillis(), 1000);
-					AppMgr.transam.send(r);
-				}
-			}
-		}
-	};
 
 	@SuppressLint("HandlerLeak")
 	Handler fromTransam = new Handler() {
@@ -122,7 +118,6 @@ public class Main extends PiztorAct {
 			default:
 				break;
 			}
-
 		}
 	};
 
@@ -147,7 +142,6 @@ public class Main extends PiztorAct {
 
 	// TODO flush map view
 	void flushMap() {
-
 	}
 
 	class StartStatus extends ActStatus {
@@ -174,7 +168,6 @@ public class Main extends PiztorAct {
 		void leave(int e) {
 			System.out.println("leave start status!!!! because" + cause(e));
 		}
-
 	}
 
 	class FetchStatus extends ActStatus {
@@ -193,7 +186,6 @@ public class Main extends PiztorAct {
 		void leave(int e) {
 			System.out.println("leave fetch status!!!! because" + cause(e));
 		}
-
 	}
 
 	class FocusStatus extends ActStatus {
@@ -201,15 +193,12 @@ public class Main extends PiztorAct {
 		@Override
 		void enter(int e) {
 			System.out.println("enter focus status!!!!");
-
 		}
 
 		@Override
 		void leave(int e) {
 			System.out.println("leave focus status!!!! because" + cause(e));
-
 		}
-
 	}
 
 	class AutoUpdate extends TimerTask {
@@ -218,14 +207,15 @@ public class Main extends PiztorAct {
 		public void run() {
 			actMgr.trigger(Main.TimerFlush);
 		}
-
 	}
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
+	
 		id = "Main";
 		super.onCreate(savedInstanceState);
-		AppMgr.tracker.setHandler(fromGPS);
+		
+		//AppMgr.tracker.setHandler(fromGPS);
 		ActStatus[] r = new ActStatus[3];
 		r[0] = new StartStatus();
 		r[1] = new FetchStatus();
@@ -242,28 +232,29 @@ public class Main extends PiztorAct {
 		actMgr.add(r[2], TimerFlush, r[2]);
 		autodate = new Timer();
 		AppMgr.transam.setHandler(fromTransam);	
-		// draw map
 		
-		mBMapMan = new BMapManager(getApplication());
-		mBMapMan.init("728779592a12fd88a5eadb4da9fd42bc",null);
-		
-		setContentView(R.layout.activity_main);
-
-		requestLocButton = (Button) findViewById(R.id.requestLoc);
-		OnClickListener btnClickListener = new OnClickListener() {
-			
+		/*
+		mBMapManager = new BMapManager(getApplicationContext());
+		mBMapManager.init("8a0ae50048d103b2b8b12b7066f4ea7d",new MKGeneralListener(){
 			@Override
-			public void onClick(View v) {
-				requestLocClick();
+			public void onGetNetworkState(int arg0) {
+				System.out.println("Network !!!!!!     " + arg0);
 			}
-		};
-		requestLocButton.setOnClickListener(btnClickListener);
-
-		mMapView = (MapView)findViewById(R.id.bmapView);
-		mMapView.setBuiltInZoomControls(false);
-		mMapView.removeViewAt(1); 
-		mMapController = mMapView.getController();
+			@Override
+			public void onGetPermissionState(int arg0) {
+				System.out.println("Permission !!!!!!!     " +  arg0);
+			}});
 		
+		mBMapManager.start();
+		*/Log.d("你妹","xxxxxxxxx");
+		setContentView(R.layout.activity_main);
+		Log.d("你妹","xxxxxxxxx");
+		/**
+		 * Initialize MapView
+		 */
+		mMapView = (MapView)findViewById(R.id.bmapView);
+		mMapController = mMapView.getController();
+		mMapView.setBuiltInZoomControls(false);	
 		GeoPoint point = new GeoPoint((int)(31.032247* 1E6),(int)(121.445937* 1E6));
 		mMapController.setCenter(point);
 		mMapController.setZoom(17);
@@ -278,25 +269,19 @@ public class Main extends PiztorAct {
 		option.setScanSpan(5000);
 		mLocClient.setLocOption(option);
 		mLocClient.start();
-
 		myLocationOverlay = new locationOverlay(mMapView);
 		myLocationOverlay.setData(locData);
-		System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"+locData.latitude+"    "+locData.longitude);
 		mMapView.getOverlays().add(myLocationOverlay);
 		myLocationOverlay.enableCompass();
 		mMapView.refresh();
 	}
 
-	public void requestLocClick() {
-		isRequest = true;
-		mLocClient.requestLocation();
-		Toast.makeText(Main.this, "Focusing...", Toast.LENGTH_SHORT).show();
-	}
 
 	public class MyLocationListener implements BDLocationListener {
-		
+
 		@Override
 		public void onReceiveLocation(BDLocation location) {
+			Log.d("GPS", "Gotten");
 			if (location == null) {
 				return;
 			}
@@ -310,9 +295,8 @@ public class Main extends PiztorAct {
 			myLocationOverlay.setData(locData);
 			mMapView.refresh();
 
-			if (isRequest || isFirstLoc) {
+			if (isFirstLoc) {
 				mMapController.animateTo(new GeoPoint((int)(locData.latitude * 1E6), (int)(locData.longitude * 1E6)));
-				isRequest = false;
 			}
 			isFirstLoc = false;
 		}
@@ -326,21 +310,10 @@ public class Main extends PiztorAct {
 	}
 
 	public class locationOverlay extends MyLocationOverlay {
-		
+
 		public locationOverlay(MapView mapView) {
 			super(mapView);
 		}
-
-		/*
-		@Override
-		protected boolean dispatcTap() {
-			popupText.setBackgroundResource(R.drawable.popup);
-			popupText.setText("^_^");
-			pop.shoPopup(BMapUtil.getBitmapFromView(popupText),
-					new GeoPoint((int)(locData.latitude * 1E6),(int)(locData.longitude * 1E6)), 8);
-			return true;
-		}
-		*/
 	}
 
 	@Override
@@ -351,16 +324,16 @@ public class Main extends PiztorAct {
 		btnSearch = (ImageButton) findViewById(R.id.footbar_btn_search);
 		btnSettings = (ImageButton) findViewById(R.id.footbar_btn_settings);
 		btnFetch.setOnClickListener(new View.OnClickListener() {
-			
+
 			@Override
 			public void onClick(View arg0) {
-			//	actMgr.trigger(FetchButtonPress);
+				//	actMgr.trigger(FetchButtonPress);
 			}
 		});
 		btnFocus.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-			//	actMgr.trigger(FocuseButtonPress);
+				//	actMgr.trigger(FocuseButtonPress);
 			}
 		});
 		btnSettings.setOnClickListener(new View.OnClickListener() {
@@ -373,34 +346,35 @@ public class Main extends PiztorAct {
 	}
 
 	@Override
-	protected void onPause() {
-		mMapView.onPause();
-		super.onPause();
-	}
-
-	@Override
-	protected void onResume() {
-		mMapView.onResume();
-		super.onResume();
-	}
-
-	@Override
-	protected void onDestroy() {
-		if (mLocClient != null)
-			mLocClient.stop();
-		mMapView.destroy();
-		super.onDestroy();
-	}
-
-	@Override
 	public boolean onKeyDown(int keyCode, KeyEvent event) {
-		 if (keyCode == KeyEvent.KEYCODE_BACK) {
-			 AppMgr.exit();
-			 return true;
-		 }
-		 return super.onKeyDown(keyCode, event);
+		if (keyCode == KeyEvent.KEYCODE_BACK) {
+			AppMgr.exit();
+			return true;
+		}
+		return super.onKeyDown(keyCode, event);
 	}
 
+	@Override
+    protected void onPause() {
+        mMapView.onPause();
+        super.onPause();
+    }
+    
+    @Override
+    protected void onResume() {
+        mMapView.onResume();
+        super.onResume();
+    }
+    
+    @Override
+    protected void onDestroy() {
+    	//退出时销毁定位
+        if (mLocClient != null)
+            mLocClient.stop();
+        mMapView.destroy();
+        super.onDestroy();
+    }
+	
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
 		// Inflate the menu; this adds items to the action bar if it is present.
