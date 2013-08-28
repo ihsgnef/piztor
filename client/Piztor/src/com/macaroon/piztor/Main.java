@@ -12,6 +12,7 @@ import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.View;
 import android.widget.ImageButton;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.baidu.location.BDLocation;
@@ -20,6 +21,8 @@ import com.baidu.location.LocationClient;
 import com.baidu.location.LocationClientOption;
 import com.baidu.mapapi.map.LocationData;
 import com.baidu.mapapi.map.MapView;
+import com.baidu.mapapi.map.OverlayItem;
+import com.baidu.mapapi.map.PopupOverlay;
 
 public class Main extends PiztorAct {
 	final static int SearchButtonPress = 1;
@@ -29,9 +32,23 @@ public class Main extends PiztorAct {
 	final static int Fetch = 6;
 	final static int mapViewtouched = 7;
 
+	/**
+	 * popups
+	 */
+	private PopupOverlay pop = null;
+	private TextView popupText = null;
+	private View viewCache = null;
+	private View popupInfo = null;
+	private View popupLeft = null;
+	private View popupRight = null;
+	private MapView.LayoutParams layoutParam = null;
+	private OverlayItem mCurItem = null;
+
 	MapMaker mapMaker = null;
 	MapView mMapView;
 
+	boolean isFirstLocation = true;
+	
 	/**
 	 * Locating component
 	 */
@@ -40,7 +57,7 @@ public class Main extends PiztorAct {
 	public MyLocationListener myListener = new MyLocationListener();
 
 	ImageButton btnSearch, btnFetch, btnFocus, btnSettings;
-	//Timer autodate;
+	// Timer autodate;
 	MapInfo mapInfo;
 	/*
 	 * @SuppressLint("HandlerLeak") Handler fromGPS = new Handler() {
@@ -90,11 +107,7 @@ public class Main extends PiztorAct {
 							+ " group : " + r.gid);
 					if (r.uid == Infomation.myInfo.uid) {
 						Infomation.myInfo.gid = r.gid;
-						try {
-							//autodate.schedule(new AutoUpdate(), 0, 5000);
-						} catch (Exception e) {
-							e.printStackTrace();
-						}
+						Infomation.myInfo.sex = r.sex;
 					} else {
 						UserInfo user = mapInfo.getUserInfo(r.uid);
 						if (user != null)
@@ -109,9 +122,14 @@ public class Main extends PiztorAct {
 				}
 				break;
 			case 4:// 登出
-				Toast toast = Toast.makeText(getApplicationContext(),
-						"logout failed", Toast.LENGTH_LONG);
-				toast.show();
+				ResLogout logout = (ResLogout) m.obj;
+				if (logout.s == 0) {
+					actMgr.trigger(AppMgr.logout);
+				} else {
+					Toast toast = Toast.makeText(getApplicationContext(),
+							"logout failed", Toast.LENGTH_LONG);
+					toast.show();
+				}
 				break;
 			default:
 				break;
@@ -140,6 +158,9 @@ public class Main extends PiztorAct {
 	void flushMap() {
 		if (mapMaker != null)
 			mapMaker.UpdateMap(AppMgr.mapInfo);
+		else
+			System.out
+					.println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
 	}
 
 	public class MyLocationListener implements BDLocationListener {
@@ -155,9 +176,14 @@ public class Main extends PiztorAct {
 			locData.accuracy = location.getRadius();
 			locData.direction = location.getDerect();
 
-			mapMaker.UpdateLocationOverlay(locData, false);
-			if (Infomation.token != null)
-				AppMgr.transam.send(new ReqUpdate(Infomation.token, Infomation.username, locData.latitude, locData.longitude, System.currentTimeMillis(), 2000));
+			mapMaker.UpdateLocationOverlay(locData, isFirstLocation);
+			isFirstLocation = false;
+			if (Infomation.token != null) {
+				AppMgr.transam.send(new ReqUpdate(Infomation.token,
+						Infomation.username, locData.latitude,
+						locData.longitude, System.currentTimeMillis(), 2000));
+				Infomation.myInfo.setLocation(locData.latitude, locData.longitude);
+			}
 		}
 
 		@Override
@@ -281,13 +307,10 @@ public class Main extends PiztorAct {
 		actMgr.add(focusStatus, mapViewtouched, startStatus);
 		actMgr.add(focusStatus, SuccessFetch, focusStatus);
 		actMgr.add(focusStatus, Fetch, focusStatus);
-		//autodate = new Timer();
-		flushMap();
-		// ImageView view = (ImageView) findViewById(R.id.main_mapview);
-		// view.setOnTouchListener(new MultiTouchListener());
 		setContentView(R.layout.activity_main);
 		mMapView = (MapView) findViewById(R.id.bmapView);
 		mapMaker = new MapMaker(mMapView, getApplicationContext());
+		mapMaker.clearOverlay(mMapView);
 		mapMaker.InitMap();
 		mLocClient = new LocationClient(this);
 		locData = new LocationData();
@@ -301,6 +324,10 @@ public class Main extends PiztorAct {
 		mapMaker.UpdateLocationOverlay(locData, false);
 	}
 
+	/*
+	 * public boolean onTap(int index) { OverlayItem item = getItem(index);
+	 * mCurItem = item; if () }
+	 */
 	@Override
 	protected void onStart() {
 		super.onStart();
@@ -332,6 +359,7 @@ public class Main extends PiztorAct {
 	@Override
 	protected void onResume() {
 		mapMaker.onResume();
+		flushMap();
 		super.onResume();
 	}
 
@@ -344,7 +372,6 @@ public class Main extends PiztorAct {
 	@Override
 	public void onStop() {
 		super.onStop();
-		//autodate.cancel();
 	}
 
 	@Override
