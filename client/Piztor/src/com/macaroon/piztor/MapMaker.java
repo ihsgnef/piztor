@@ -125,9 +125,11 @@ public class MapMaker extends Activity{
 		}
 		mItems = new ArrayList<OverlayItem>();
 		mItems.addAll(mOverlay.getAllItem());
-		if (mMapView.getOverlays() != null)
-			mMapView.getOverlays().add(mOverlay);
-		mMapView.refresh();
+		if (mMapView != null) {
+			if (mMapView.getOverlays() != null)
+				mMapView.getOverlays().add(mOverlay);
+			mMapView.refresh();
+		}
 	}
 
 

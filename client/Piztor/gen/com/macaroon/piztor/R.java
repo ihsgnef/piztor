@@ -126,6 +126,7 @@ public final class R {
         public static final int all=0x7f05000c;
         public static final int app_name=0x7f050000;
         public static final int checkin=0x7f050006;
+        public static final int desc=0x7f050014;
         public static final int female=0x7f05000a;
         public static final int fetch=0x7f050005;
         public static final int focus=0x7f050007;

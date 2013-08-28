@@ -20,5 +20,6 @@
     <string name="password">password</string>
     <string name="username">username</string>
     <string name="login">login</string>
+    <string name="desc">desc</string>
 
 </resources>
