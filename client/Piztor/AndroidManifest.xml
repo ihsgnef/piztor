@@ -58,7 +58,8 @@
             android:name="com.macaroon.piztor.Main"
             android:label="@string/title_activity_main" 
             android:screenOrientation="portrait"  
-          	android:configChanges="orientation">
+            android:windowSoftInputMode="stateHidden"
+          	android:configChanges="keyboardHidden|orientation">
         </activity>
         <activity
             android:name="com.macaroon.piztor.Settings"

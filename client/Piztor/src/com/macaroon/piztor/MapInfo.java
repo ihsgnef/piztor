@@ -14,7 +14,6 @@ public class MapInfo {
 	HashMap<Integer, UserInfo> mp;
 	Vector<UserInfo> allUsers;
 	UserInfo myInfo;
-	Style layout;
 
 	@SuppressLint("UseSparseArrays")
 	MapInfo() {
@@ -30,10 +29,6 @@ public class MapInfo {
 	void addUserInfo(UserInfo userInfo) {
 		allUsers.add(userInfo);
 		mp.put(userInfo.uid, userInfo);
-	}
-
-	void setStyle(Style layout) {
-		this.layout = layout;
 	}
 
 	UserInfo getUserInfo(int uid) {
@@ -53,9 +48,11 @@ public class MapInfo {
 }
 
 class UserInfo {
-	int uid, gid, sex;
+	int uid, sex;
+	int company;		//group id
+	int section;
 	GeoPoint location;
-
+	String nickname;
 	UserInfo(int uid) {
 		this.uid = uid;
 	}
@@ -64,8 +61,9 @@ class UserInfo {
 		location = new GeoPoint((int)(lat * 1e6), (int)(lot * 1e6));
 	}
 
-	void setInfo(int gid, int sex) {
-		this.gid = gid;
+	void setInfo(int company, int section, int sex, String nickName) {
+		this.company = company;
+		this.section = section;
 		this.sex = sex;
 	}
 	

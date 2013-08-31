@@ -1,16 +1,20 @@
 package com.macaroon.piztor;
 
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.Calendar;
+import java.util.Vector;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -20,129 +24,116 @@ import com.baidu.location.BDLocationListener;
 import com.baidu.location.LocationClient;
 import com.baidu.location.LocationClientOption;
 import com.baidu.mapapi.map.LocationData;
+import com.baidu.mapapi.map.MKMapTouchListener;
 import com.baidu.mapapi.map.MapView;
 import com.baidu.mapapi.map.OverlayItem;
 import com.baidu.mapapi.map.PopupOverlay;
+import com.baidu.mapapi.utils.DistanceUtil;
+import com.baidu.platform.comapi.basestruct.GeoPoint;
 
 public class Main extends PiztorAct {
-	final static int SearchButtonPress = 1;
+	final static int CheckinButtonPress = 1;
 	final static int FocuseButtonPress = 3;
 	final static int SuccessFetch = 4;
 	final static int FailedFetch = 5;
-	final static int Fetch = 6;
 	final static int mapViewtouched = 7;
-
-	/**
-	 * popups
-	 */
-	private PopupOverlay pop = null;
-	private TextView popupText = null;
-	private View viewCache = null;
-	private View popupInfo = null;
-	private View popupLeft = null;
-	private View popupRight = null;
-	private MapView.LayoutParams layoutParam = null;
-	private OverlayItem mCurItem = null;
 
 	MapMaker mapMaker = null;
 	MapView mMapView;
+	AlertMaker alertMaker;
+	private Calendar calendar;
+	GeoPoint markerPoint = null;
+	private MKMapTouchListener mapTouchListener;
+	private final int checkinRadius = 10;
 
-	boolean isFirstLocation = true;
-	
 	/**
 	 * Locating component
 	 */
+	LocationManager locationManager;
+	boolean isGPSEnabled;
 	LocationClient mLocClient;
 	LocationData locData = null;
 	public MyLocationListener myListener = new MyLocationListener();
+	boolean isFirstLocation = true;
+	public static int GPSrefreshrate = 5;
 
-	ImageButton btnSearch, btnFetch, btnFocus, btnSettings;
-	// Timer autodate;
+	ImageButton btnCheckin, btnFetch, btnFocus, btnSettings;
 	MapInfo mapInfo;
-	/*
-	 * @SuppressLint("HandlerLeak") Handler fromGPS = new Handler() {
-	 * 
-	 * @Override public void handleMessage(Message m) { if (m.what != 0) {
-	 * Location l = (Location) m.obj; if (l == null)
-	 * System.out.println("fuck!!!"); else { ReqUpdate r = new
-	 * ReqUpdate(Infomation.token, Infomation.username, l.getLatitude(),
-	 * l.getLongitude(), System.currentTimeMillis(), 1000);
-	 * AppMgr.transam.send(r); } } } };
-	 */
-
+	
+	Transam transam;
 	@SuppressLint("HandlerLeak")
 	Handler handler = new Handler() {
 		@Override
 		public void handleMessage(Message m) {
 			switch (m.what) {
-			case 1:// 上传自己信息成功or失败
-				ResUpdate update = (ResUpdate) m.obj;
-				if (update.s == 0)
-					System.out.println("update success");
-				else {
-					System.out.println("update failed");
-					actMgr.trigger(AppMgr.errorToken);
-				}
+			case Res.Login:// 上传自己信息成功or失败
+				Log.d("update location", "successfull");
 				break;
-			case 2:// 得到别人的信息
-				ResLocation location = (ResLocation) m.obj;
-				if (location.s == 0) {
-					mapInfo.clear();
-					for (Rlocation i : location.l) {
-						System.out.println(i.i + " : " + i.lat + " " + i.lot);
-						UserInfo info = new UserInfo(i.i);
-						info.setLocation(i.lat, i.lot);
-						mapInfo.addUserInfo(info);
-					}
-					actMgr.trigger(SuccessFetch);
-				} else {
-					System.out.println("resquest for location failed!");
-					actMgr.trigger(AppMgr.errorToken);
-				}
-				break;
-			case 3:// 得到用户信息
-				ResUserinfo r = (ResUserinfo) m.obj;
-				if (r.s == 0) {
-					System.out.println("id : " + r.uid + " sex :  " + r.sex
-							+ " group : " + r.gid);
-					if (r.uid == Infomation.myInfo.uid) {
-						Infomation.myInfo.gid = r.gid;
-						Infomation.myInfo.sex = r.sex;
+			case Res.UserInfo:// 得到用户信息
+				ResUserInfo userInfo = (ResUserInfo) m.obj;
+				System.out.println("revieve ........" + userInfo.uinfo.size());
+				Vector<RUserInfo> uinfo = userInfo.uinfo;
+				for (RUserInfo info : uinfo) {
+					System.out.println(info.latitude + "     "
+							+ info.longitude);
+					UserInfo r = mapInfo.getUserInfo(info.uid);
+					if (r != null) {
+						r.setInfo(info.gid.company, info.gid.section, info.sex,
+								info.nickname);
+						r.setLocation(info.latitude, info.longitude);
 					} else {
-						UserInfo user = mapInfo.getUserInfo(r.uid);
-						if (user != null)
-							user.setInfo(r.gid, r.sex);
-						else
-							System.out.println("fuck!!!!");
+						r = new UserInfo(info.uid);
+						r.setInfo(info.gid.company, info.gid.section, info.sex,
+								info.nickname);
+						r.setLocation(info.latitude, info.longitude);
+						mapInfo.addUserInfo(r);
 					}
-					flushMap();
-				} else {
-					System.out.println("reqest for userInfo must be wrong!!!");
-					actMgr.trigger(AppMgr.errorToken);
 				}
+				System.out.println("now has info number : " + mapInfo.allUsers.size());
+				flushMap();
 				break;
-			case 4:// 登出
-				ResLogout logout = (ResLogout) m.obj;
-				if (logout.s == 0) {
-					actMgr.trigger(AppMgr.logout);
-				} else {
-					Toast toast = Toast.makeText(getApplicationContext(),
-							"logout failed", Toast.LENGTH_LONG);
-					toast.show();
-				}
+			case Res.Logout:// 登出
+				actMgr.trigger(AppMgr.logout);
 				break;
+			case Res.PushMessage:
+				ResPushMessage pushMessage = (ResPushMessage) m.obj;
+				receiveMessage(pushMessage.message);
+				break;
+			case Res.SendMessage:
+				Log.d(LogInfo.resquest, "send message successfully");
+				break;
+			case Res.PushLocation:
+				ResPushLocation pushLocation = (ResPushLocation) m.obj;
+				upMapInfo(pushLocation.l);
+				flushMap();
+				break;
+			case -1:
+				actMgr.trigger(AppMgr.logout);
 			default:
 				break;
 			}
+		}
+
+		void upMapInfo(Vector<RLocation> l) {
+			System.out.println("hahaha" + "        " + l.size());
+			for (RLocation i : l) {
+				UserInfo info = AppMgr.mapInfo.getUserInfo(i.id);
+				if (info != null) {
+					info.setLocation(i.latitude, i.longitude);
+				} else {
+					info = new UserInfo(i.id);
+					info.setLocation(i.latitude, i.longitude);
+					AppMgr.mapInfo.addUserInfo(info);
+				}
+			}
+			flushMap();
 		}
 	};
 
 	String cause(int t) {
 		switch (t) {
-		case SearchButtonPress:
-			return "Search Button Press";
-		case Fetch:
-			return "Fetch ";
+		case CheckinButtonPress:
+			return "Checkin Button Press";
 		case FocuseButtonPress:
 			return "Focuse Button Press";
 		case SuccessFetch:
@@ -159,31 +150,72 @@ public class Main extends PiztorAct {
 		if (mapMaker != null)
 			mapMaker.UpdateMap(AppMgr.mapInfo);
 		else
-			System.out
-					.println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+			Log.d("exception", "!!!");
+	}
+
+	void receiveMessage(String msg) {
+		System.out.println("receiveed push message!!!!!");
+		System.out.println(msg);
+		Toast toast = Toast.makeText(getApplicationContext(), msg,
+				Toast.LENGTH_LONG);
+		toast.show();
 	}
 
 	public class MyLocationListener implements BDLocationListener {
+		int cnt = 0;
+		GeoPoint lastPoint = null;
 		@Override
 		public void onReceiveLocation(BDLocation location) {
 			Log.d("GPS", "Gotten");
+			cnt++;
 			if (location == null) {
 				return;
 			}
-
 			locData.latitude = location.getLatitude();
 			locData.longitude = location.getLongitude();
 			locData.accuracy = location.getRadius();
 			locData.direction = location.getDerect();
-
-			mapMaker.UpdateLocationOverlay(locData, isFirstLocation);
-			isFirstLocation = false;
-			if (Infomation.token != null) {
-				AppMgr.transam.send(new ReqUpdate(Infomation.token,
-						Infomation.username, locData.latitude,
-						locData.longitude, System.currentTimeMillis(), 2000));
-				Infomation.myInfo.setLocation(locData.latitude, locData.longitude);
+			
+			GeoPoint point = new GeoPoint((int)(locData.latitude * 1e6), (int)(locData.longitude * 1e6));
+			if (lastPoint == null || cnt > 5 || DistanceUtil.getDistance(point, lastPoint) > 10 ) {
+				if (Infomation.token != null) {
+					Infomation.myInfo.setLocation(locData.latitude,
+							locData.longitude);
+					AppMgr.transam.send(new ReqUpdate(Infomation.token,
+							Infomation.username, locData.latitude,
+							locData.longitude, System.currentTimeMillis(), 2000));
+					lastPoint = point;
+					cnt = 0;
+				}
 			}
+			boolean hasAnimation = false;
+			if (isFirstLocation) {
+				hasAnimation = true;
+				isFirstLocation = false;
+			}
+			int TMP = location.getLocType();
+			if (TMP == 61) {
+				Toast toast = Toast.makeText(Main.this, "Piztor : Update from GPS result (" + GPSrefreshrate + "s)", 2000);
+				toast.setGravity(Gravity.TOP, 0, 80);
+				toast.show();
+			}
+			if (TMP == 161) {
+				Toast toast = Toast.makeText(Main.this, "Piztor : Update from Network (" + GPSrefreshrate + "s)", 2000);
+				toast.setGravity(Gravity.TOP, 0, 80);
+				toast.show();
+			}
+			if (TMP == 65) {
+				Toast toast = Toast.makeText(Main.this, "Piztor : Update from Cache (" + GPSrefreshrate + "s)", 2000);
+				toast.setGravity(Gravity.TOP, 0, 80);
+				toast.show();
+			}
+			mapMaker.UpdateLocationOverlay(locData, hasAnimation);
+			
+			LocationClientOption option = new LocationClientOption();
+			option.setOpenGps(true);
+			option.setCoorType("bd09ll");
+			option.setScanSpan(GPSrefreshrate * 1000);
+			mLocClient.setLocOption(option);
 		}
 
 		@Override
@@ -200,16 +232,7 @@ public class Main extends PiztorAct {
 		void enter(int e) {
 			System.out.println("enter start status!!!!");
 			if (e == ActMgr.Create) {
-				System.out.println(Infomation.token + "  "
-						+ Infomation.username + "   " + Infomation.myInfo.uid);
-				AppMgr.transam.send(new ReqUserinfo(Infomation.token,
-						Infomation.username, Infomation.myInfo.uid, System
-								.currentTimeMillis(), 5000));
-				// TODO flush mapinfo.myinfo
-			}
-
-			if (e == Fetch) {
-				requesLocation(Infomation.myInfo.gid);
+				System.out.println(Infomation.token + "  " + Infomation.username + "   " + Infomation.myInfo.uid);
 			}
 			if (e == SuccessFetch)
 				flushMap();
@@ -222,131 +245,142 @@ public class Main extends PiztorAct {
 
 	}
 
-	class FetchStatus extends ActStatus {
-
-		@Override
-		void enter(int e) {
-			System.out.println("enter Fetch status!!!!");
-			if (e == Fetch) {
-				requesLocation(Infomation.myInfo.gid);
-			}
-			if (e == SuccessFetch) {
-				flushMap();
-			}
+	void requestUserInfo() {
+		for (RGroup i : Infomation.sublist) {
+			ReqUserInfo r = new ReqUserInfo(Infomation.token,
+					Infomation.username, i, System.currentTimeMillis(), 2000);
+			transam.send(r);
 		}
-
-		@Override
-		void leave(int e) {
-			System.out.println("leave fetch status!!!! because" + cause(e));
-		}
-
-	}
-
-	class FocusStatus extends ActStatus {
-
-		@Override
-		void enter(int e) {
-			// TODO
-			switch (e) {
-			case Fetch:
-				requesLocation(Infomation.myInfo.gid);
-				break;
-			case FocuseButtonPress:
-				mapMaker.UpdateLocationOverlay(locData, true);
-				break;
-			case SuccessFetch:
-				flushMap();
-				break;
-			default:
-				break;
-			}
-			System.out.println("enter focus status!!!!");
-		}
-
-		@Override
-		void leave(int e) {
-			// TODO leave focus
-			System.out.println("leave focus status!!!! because" + cause(e));
-		}
-
-	}
-
-	void requesLocation(int gid) {
-		ReqLocation r = new ReqLocation(Infomation.token, Infomation.username,
-				gid, System.currentTimeMillis(), 2000);
 		System.out.println("get others infomation!!!");
-		AppMgr.transam.send(r);
 	}
 
-	class AutoUpdate extends TimerTask {
-		@Override
-		public void run() {
-			actMgr.trigger(Main.Fetch);
+	void focusOn() {
+		mapMaker.mMapController.animateTo(Infomation.myInfo.location);
+	}
+
+	public void InitTouchListenr() {
+
+		mapTouchListener = new MKMapTouchListener() {
+
+			@Override
+			public void onMapLongClick(GeoPoint arg0) {
+				closeBoard(Main.this);
+				alertMaker.showMarkerAlert(arg0);
+			}
+
+			@Override
+			public void onMapDoubleClick(GeoPoint arg0) {
+				// TODO Auto-generated method stub
+
+			}
+
+			@Override
+			public void onMapClick(GeoPoint arg0) {
+				// TODO Auto-generated method stub
+
+			}
+		};
+		mMapView.regMapTouchListner(mapTouchListener);
+	}
+
+	public void markerCheckin() {
+		if (mapMaker.getMakerLocation() == null) {
+			Toast toast = Toast.makeText(Main.this, "No marker now!", 2000);
+			toast.setGravity(Gravity.TOP, 0, 80);
+			toast.show();
+			return;
+		}
+		GeoPoint curPoint = new GeoPoint((int)(locData.latitude * 1E6), (int)(locData.longitude * 1E6));
+		double disFromMarker = DistanceUtil.getDistance(curPoint, mapMaker.getMakerLocation());
+		if (disFromMarker < locData.accuracy) {
+			mapMaker.removeMarker();
+			Toast toast = Toast.makeText(Main.this, "Marker checked!", 2000);
+			toast.setGravity(Gravity.TOP, 0, 80);
+			toast.show();
+		} else {
+			Toast toast = Toast.makeText(Main.this, "Please get closer to the marker!", 2000);
+			toast.setGravity(Gravity.TOP, 0, 80);
+			toast.show();
 		}
 	}
-
+	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		id = "Main";
 		super.onCreate(savedInstanceState);
+
+		locationManager = (LocationManager) this
+				.getSystemService(LOCATION_SERVICE);
+		isGPSEnabled = locationManager
+				.isProviderEnabled(locationManager.GPS_PROVIDER);
+		transam = AppMgr.transam;
 		mapInfo = AppMgr.mapInfo;
-		ActStatus[] r = new ActStatus[3];
+		ActStatus[] r = new ActStatus[1];
 		ActStatus startStatus = r[0] = new StartStatus();
-		ActStatus fetchStatus = r[1] = new FetchStatus();
-		ActStatus focusStatus = r[2] = new FocusStatus();
-		AppMgr.transam.setHandler(handler);
+		if (transam == null)
+			Log.d(LogInfo.exception, "transam = null");
+		transam.setHandler(handler);
 		actMgr = new ActMgr(this, startStatus, r);
-		actMgr.add(startStatus, FocuseButtonPress, focusStatus);
-		actMgr.add(startStatus, Fetch, fetchStatus);
-		actMgr.add(startStatus, SuccessFetch, startStatus);
-		actMgr.add(startStatus, Fetch, startStatus);
-		actMgr.add(fetchStatus, Fetch, startStatus);
-		actMgr.add(fetchStatus, FailedFetch, startStatus);
-		actMgr.add(fetchStatus, SuccessFetch, startStatus);
-		actMgr.add(focusStatus, FocuseButtonPress, startStatus);
-		actMgr.add(focusStatus, mapViewtouched, startStatus);
-		actMgr.add(focusStatus, SuccessFetch, focusStatus);
-		actMgr.add(focusStatus, Fetch, focusStatus);
 		setContentView(R.layout.activity_main);
+
 		mMapView = (MapView) findViewById(R.id.bmapView);
 		mapMaker = new MapMaker(mMapView, getApplicationContext());
+		alertMaker = new AlertMaker(Main.this, mapMaker);
+		if (isGPSEnabled == false) alertMaker.showSettingsAlert();
 		mapMaker.clearOverlay(mMapView);
 		mapMaker.InitMap();
+		InitTouchListenr();
 		mLocClient = new LocationClient(this);
+		mLocClient.setAK(AppMgr.strKey);
 		locData = new LocationData();
 		mLocClient.registerLocationListener(myListener);
 		LocationClientOption option = new LocationClientOption();
 		option.setOpenGps(true);
 		option.setCoorType("bd09ll");
-		option.setScanSpan(5000);
+		option.setScanSpan(GPSrefreshrate * 1000);
 		mLocClient.setLocOption(option);
 		mLocClient.start();
 		mapMaker.UpdateLocationOverlay(locData, false);
 	}
 
-	/*
-	 * public boolean onTap(int index) { OverlayItem item = getItem(index);
-	 * mCurItem = item; if () }
-	 */
+	public static void closeBoard(Context cc) {
+		InputMethodManager imm = (InputMethodManager) cc
+				.getSystemService(Context.INPUT_METHOD_SERVICE);
+		if (imm.isActive())
+			imm.toggleSoftInput(InputMethodManager.SHOW_IMPLICIT,
+					InputMethodManager.HIDE_NOT_ALWAYS);
+	}
+
 	@Override
 	protected void onStart() {
 		super.onStart();
 		btnFetch = (ImageButton) findViewById(R.id.footbar_btn_fetch);
 		btnFocus = (ImageButton) findViewById(R.id.footbar_btn_focus);
-		btnSearch = (ImageButton) findViewById(R.id.footbar_btn_search);
+		btnCheckin = (ImageButton) findViewById(R.id.footbar_btn_checkin);
 		btnSettings = (ImageButton) findViewById(R.id.footbar_btn_settings);
+		
+		btnCheckin.setOnClickListener(new View.OnClickListener() {
+			
+			@Override
+			public void onClick(View arg0) {
+				markerCheckin();
+			}
+		});
+		
 		btnFetch.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View arg0) {
-				actMgr.trigger(Fetch);
+
 			}
 		});
+
 		btnFocus.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				actMgr.trigger(FocuseButtonPress);
+				focusOn();
 			}
 		});
+
 		btnSettings.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View arg0) {
@@ -357,7 +391,15 @@ public class Main extends PiztorAct {
 	}
 
 	@Override
+	protected void onRestart() {
+		super.onRestart();
+		transam.setHandler(handler);
+	}
+
+	@Override
 	protected void onResume() {
+		isFirstLocation = true;
+		requestUserInfo();
 		mapMaker.onResume();
 		flushMap();
 		super.onResume();
@@ -403,7 +445,6 @@ public class Main extends PiztorAct {
 	protected void onSaveInstanceState(Bundle outState) {
 		super.onSaveInstanceState(outState);
 		mMapView.onSaveInstanceState(outState);
-
 	}
 
 	@Override
