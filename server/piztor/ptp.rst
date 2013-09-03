@@ -1,4 +1,4 @@
-Piztor Transmission Protocol v2.0a
+Piztor Transmission Protocol v2.0d
 ----------------------------------
 
 - Pull 
@@ -176,6 +176,10 @@ Piztor Transmission Protocol v2.0a
         +--------+
         | STATUS |
         +--------+
+
+      - ``0x00`` for success
+      - ``0x01`` for invalid token
+      - ``0x04`` for group not found
   
   - User Logout ``0x04``
   
@@ -255,6 +259,28 @@ Piztor Transmission Protocol v2.0a
       - ``0x01`` for invalid token
       - ``0x02`` for insufficient level
 
+  - Change Password ``0x08``
+
+    - Request
+
+      ::
+
+          +-------------+-------?b-------+-------?b-------+
+          |  AUTH_HEAD  |  OLD_PASSWORD  |  NEW_PASSWORD  |
+          +-------------+-----string-----+-----string-----+
+
+    - Response
+
+      ::
+      
+          +--------+
+          | STATUS |
+          +--------+
+
+      - ``0x00`` for success
+      - ``0x01`` for invalid token
+      - ``0x03`` for wrong password
+
 - Push Notification
 
   - General Request
@@ -293,7 +319,7 @@ Piztor Transmission Protocol v2.0a
 
     ::
 
-      ----+----8b----+----8b-----+----4b----+
-      ... | LATITUDE | LONGITUDE | DEADLINE |
-      ----+----------+-----------+----int---+
+      ----+--1b---+----8b----+----8b-----+----4b----+
+      ... | LEVEL | LATITUDE | LONGITUDE | DEADLINE |
+      ----+-uchar-+----------+-----------+----int---+
 

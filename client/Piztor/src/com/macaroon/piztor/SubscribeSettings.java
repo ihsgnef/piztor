@@ -101,7 +101,7 @@ public class SubscribeSettings extends PiztorAct {
             	EException eException = (EException) m.obj;
             	/////////////////TODO
 				if (eException.Etype == EException.ESubscribeFailedException) {
-					out.receiveMessage("关注信息无效");
+					out.receiveMessage("关注信息无效,可能暂无此连队或班级信息");
 					for (RGroup i : out.listGroup) {
 						Log.d("sub", i.company  + "   " + i.section);
 					}
@@ -221,7 +221,7 @@ public class SubscribeSettings extends PiztorAct {
         	simpleAdapter.notifyDataSetChanged();
         }
         for (RGroup i : ((myApp) getApplication()).sublist) {
-        	if (i.section == 255) continue;
+        	if (recSubcribe.contains(i.company)) continue;
         	//else
             HashMap<String, Object> map = new HashMap<String, Object>();
             map.put("subscribe_text", i.company + "连 " + i.section + "班");

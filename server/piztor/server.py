@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 
 from collections import deque
+from time import time
 
 import struct
 import os
@@ -52,7 +53,7 @@ _HEADER_SIZE = _SectionSize.LENGTH + \
 
 _MAX_TEXT_MESG_SIZE = 1024
 _MAX_SUB_LIST_SIZE = 10
-_MAX_PENDING_PUSH = 100
+_MAX_PENDING_PUSH = 10
 
 class _OptCode:
     user_auth =             0x00
@@ -63,16 +64,19 @@ class _OptCode:
     open_push_tunnel =      0x05
     send_text_mesg =        0x06
     set_marker =            0x07
+    change_password =       0x08
 
 class _StatusCode:
     sucess = 0x00
     auth_fail = 0x01
     insuf_lvl = 0x02
+    wrong_pass = 0x03
+    grp_not_found = 0x04
 
 class PushData(object):
     from hashlib import sha256
     def pack(self, optcode, data):
-        self.finger_print = sha256(data).digest()
+        self.finger_print = sha256(data + struct.pack("!d", time())).digest()
         buff = struct.pack("!B32s", optcode, self.finger_print)
         buff += data
         buff = struct.pack("!L", _SectionSize.LENGTH + len(buff)) + buff
@@ -87,8 +91,8 @@ class PushLocationData(PushData):
         self.pack(0x01, struct.pack("!Ldd", uid, lat, lng))
 
 class PushMarkerData(PushData):
-    def __init__(self, lat, lng, deadline):
-        self.pack(0x02, struct.pack("!ddl", lat, lng, deadline))
+    def __init__(self, perm, lat, lng, deadline):
+        self.pack(0x02, struct.pack("!Bddl", perm, lat, lng, deadline))
 
 class PushTunnel(object):
     def __init__(self, uid):
@@ -98,14 +102,16 @@ class PushTunnel(object):
         self.blocked = False
 
     def close(self):
+        print "closing TUNNEL"
         if self.conn:
+            print "loseConn called"
             self.conn.transport.loseConnection()
 
     def add(self, pdata):
-        logger.info("-- Push data enqued --")
+        #logger.info("-- Push data enqued --")
         self.pending.append(pdata)
-        if len(self.pending) > _MAX_PENDING_PUSH:
-            logger.info("-- Push queue is full, discarded an obsolete push --")
+        if not self.blocked and len(self.pending) > _MAX_PENDING_PUSH:
+            #logger.info("-- Push queue is full, discarded an obsolete push --")
             self.pending.popleft()  # discard old push
 
     def on_receive(self, data):
@@ -113,22 +119,22 @@ class PushTunnel(object):
         length, optcode, fingerprint = struct.unpack("!LB32s", data)
         if front.finger_print != fingerprint:
             raise PiztorError
-        logger.info("-- Push data confirmed by client --")
+        #logger.info("-- Push data confirmed by client %s --", str(self.uid))
         self.blocked = False
         self.push()
 
     def push(self):
         if self.blocked:
             return
-        print "Pushing via " + str(self.uid)
-        print "Pending size: " + str(len(self.pending))
-        logger.info("Pushing...")
+        #print "Pushing via " + str(self.uid)
+        #print "Pending size: " + str(len(self.pending))
+        #logger.info("Pushing...")
         if (self.conn is None) or len(self.pending) == 0:
             return
         front = self.pending.popleft()
         self.pending.appendleft(front)
         self.conn.transport.write(front.data)
-        logger.info("-- Wrote push: %s --", get_hex(front.data))
+        #logger.info("-- Wrote push: %s --", get_hex(front.data))
         self.blocked = True
 
     def clear(self):
@@ -142,6 +148,7 @@ class PushTunnel(object):
         self.conn = conn
 
     def on_connection_lost(self, conn):
+        print "TUNNEL closed"
         if conn == self.conn:
             self.conn = None
 
@@ -315,6 +322,11 @@ class UserAuthHandler(RequestHandler):
             return self._failed_response()
         else:
             logger.info("Logged in sucessfully: {0}".format(username))
+            pt = RequestHandler.push_tunnels
+            uid = uauth.uid
+            if pt.has_key(uid): # close the old push tunnel
+                pt[uid].close()
+                del pt[uid]
             uauth.regen_token()
             #logger.info("New token generated: " + get_hex(uauth.token))
             self.session.commit()
@@ -345,9 +357,9 @@ class UpdateLocationHandler(RequestHandler):
         except struct.error:
             raise BadReqError("Update location: Malformed request body")
 
-        logger.info("Trying to update location with "
-                    "(token = {0}, username = {1}, lat = {2}, lng = {3})"\
-                .format(get_hex(token), username, lat, lng))
+#        logger.info("Trying to update location with "
+#                    "(token = {0}, username = {1}, lat = {2}, lng = {3})"\
+#                .format(get_hex(token), username, lat, lng))
 
         uauth = RequestHandler.get_uauth(token, username, self.session)
         # Authentication failure
@@ -411,9 +423,9 @@ class UserInfoHandler(RequestHandler):
         except struct.error:
             raise BadReqError("User info request: Malformed request body")
 
-        logger.info("Trying to get user info with " \
-                    "(token = {0}, gid = {1})" \
-            .format(get_hex(token), gid))
+#        logger.info("Trying to get user info with " \
+#                    "(token = {0}, gid = {1})" \
+#            .format(get_hex(token), gid))
 
         uauth = RequestHandler.get_uauth(token, username, self.session)
         # Auth failure
@@ -449,9 +461,6 @@ class UpdateSubscription(RequestHandler):
         return entry
 
     def handle(self, tr_data, conn):
-        print _MAX_AUTH_HEAD_SIZE
-        print _SectionSize.GROUP_ID * _MAX_SUB_LIST_SIZE
-        print _SectionSize.PADDING
 
         self.check_size(tr_data)
         logger.info("Reading update subscription data...")
@@ -464,9 +473,9 @@ class UpdateSubscription(RequestHandler):
         except struct.error:
             raise BadReqError("Update Subscription: Malformed request body")
 
-        logger.info("Trying to update subscription with "
-                    "(token = {0}, username = {1}, grps = {2})"\
-                .format(get_hex(token), username, str(sub_list)))
+#        logger.info("Trying to update subscription with "
+#                    "(token = {0}, username = {1}, grps = {2})"\
+#                .format(get_hex(token), username, str(sub_list)))
 
         uauth = RequestHandler.get_uauth(token, username, self.session)
         # Authentication failure
@@ -474,7 +483,10 @@ class UpdateSubscription(RequestHandler):
             logger.warning("Authentication failure")
             return self.pack(struct.pack("!B", _StatusCode.auth_fail))
 
-        uauth.user.sub = map(self._find_group, sub_list)
+        try:
+            uauth.user.sub = map(self._find_group, sub_list)
+        except BadReqError:
+            return self.pack(struct.pack("!B", _StatusCode.grp_not_found))
         self.session.commit()
         logger.info("Subscription is updated sucessfully")
 
@@ -496,15 +508,44 @@ class UserLogoutHandler(RequestHandler):
         except struct.error:
             raise BadReqError("User logout: Malformed request body")
 
-        logger.info("Trying to logout with "
-                    "(token = {0}, username = {1})"\
-                .format(get_hex(token), username))
+#        logger.info("Trying to logout with "
+#                    "(token = {0}, username = {1})"\
+#                .format(get_hex(token), username))
 
         uauth = RequestHandler.get_uauth(token, username, self.session)
         # Authentication failure
         if uauth is None:
             logger.warning("Authentication failure")
             return self.pack(struct.pack("!B", _StatusCode.auth_fail))
+
+        pt = RequestHandler.push_tunnels
+        u = uauth.user
+        loc = u.location
+        loc.lat = NOT_A_LAT
+        loc.lng = NOT_A_LNG
+
+        comp = self.session.query(GroupInfo) \
+                .filter(GroupInfo.id == u.comp_id).one()
+        sec = self.session.query(GroupInfo) \
+                .filter(GroupInfo.id == u.sec_id).one()
+
+        pdata = PushLocationData(u.id, loc.lat, loc.lng)
+        for user in comp.subscribers:
+            uid = user.id
+            if uid == uauth.uid: continue
+            if pt.has_key(uid):
+                tunnel = pt[uid]
+                tunnel.add(pdata)
+                tunnel.push()
+
+        for user in sec.subscribers:
+            uid = user.id
+            if uid == uauth.uid: continue
+            if pt.has_key(uid):
+                tunnel = pt[uid]
+                tunnel.add(pdata)
+                tunnel.push()
+
         pt = RequestHandler.push_tunnels
         uid = uauth.uid
         pt[uid].close()
@@ -530,9 +571,9 @@ class OpenPushTunnelHandler(RequestHandler):
         except struct.error:
             raise BadReqError("Open push tunnel: Malformed request body")
 
-        logger.info("Trying to open push tunnel with "
-                    "(token = {0}, username = {1})"\
-                .format(get_hex(token), username))
+#        logger.info("Trying to open push tunnel with "
+#                    "(token = {0}, username = {1})"\
+#                .format(get_hex(token), username))
 
         uauth = RequestHandler.get_uauth(token, username, self.session)
         # Authentication failure
@@ -565,9 +606,9 @@ class SendTextMessageHandler(RequestHandler):
         except struct.error:
             raise BadReqError("Send text mesg: Malformed request body")
 
-        logger.info("Trying to send text mesg with "
-                    "(token = {0}, username = {1})"\
-                .format(get_hex(token), username))
+#        logger.info("Trying to send text mesg with "
+#                    "(token = {0}, username = {1})"\
+#                .format(get_hex(token), username))
 
         uauth = RequestHandler.get_uauth(token, username, self.session)
         # Authentication failure
@@ -610,9 +651,9 @@ class SetMarkerHandler(RequestHandler):
         except struct.error:
             raise BadReqError("Set marker: Malformed request body")
 
-        logger.info("Trying to set marker with "
-                    "(token = {0}, username = {1})"\
-                .format(get_hex(token), username))
+#        logger.info("Trying to set marker with "
+#                    "(token = {0}, username = {1})"\
+#                .format(get_hex(token), username))
 
         uauth = RequestHandler.get_uauth(token, username, self.session)
         # Authentication failure
@@ -636,10 +677,55 @@ class SetMarkerHandler(RequestHandler):
             if uid == uauth.uid: continue
             if pt.has_key(uid):
                 tunnel = pt[uid]
-                tunnel.add(PushMarkerData(lat, lng, deadline))
+                tunnel.add(PushMarkerData(u.perm, lat, lng, deadline))
                 tunnel.push()
         logger.info("Set marker successfully!")
         return self.pack(struct.pack("!B", _StatusCode.sucess))
+
+class ChangePasswordHandler(RequestHandler):
+
+    _optcode = _OptCode.change_password
+    _max_tr_data_size = _MAX_AUTH_HEAD_SIZE + \
+                        MAX_PASSWORD_SIZE + \
+                        _SectionSize.PADDING + \
+                        MAX_PASSWORD_SIZE + \
+                        _SectionSize.PADDING
+
+    def handle(self, tr_data, conn):
+        self.check_size(tr_data)
+        logger.info("Reading change password data...")
+        try:
+            token, = struct.unpack("!32s", tr_data[:32])
+            username, tail = RequestHandler.trunc_padding(tr_data[32:])
+            if username is None: 
+                raise struct.error
+            old_pass, tail = RequestHandler.trunc_padding(tail)
+            new_pass = tail[:-1]
+        except struct.error:
+            raise BadReqError("User logout: Malformed request body")
+
+#        logger.info("Trying to change password with "
+#                    "(token = {0}, username = {1}, old_pass = {2}, new_pass = {3})"\
+#                .format(get_hex(token), username, old_pass, new_pass))
+
+        uauth = RequestHandler.get_uauth(token, username, self.session)
+        # Authentication failure
+        if uauth is None:
+            logger.warning("Authentication failure")
+            return self.pack(struct.pack("!B", _StatusCode.auth_fail))
+        if not uauth.check_password(old_pass):
+            return self.pack(struct.pack("!B", _StatusCode.wrong_pass))
+        uauth.set_password(new_pass)
+        self.session.commit()
+        logger.info("Password changed successfully!")
+
+        pt = RequestHandler.push_tunnels
+        uid = uauth.uid
+        pt[uid].close()
+        del pt[uid]
+        uauth.regen_token()
+
+        return self.pack(struct.pack("!B",  _StatusCode.sucess))
 
 
 class PTP(Protocol, TimeoutMixin):
@@ -651,7 +737,8 @@ class PTP(Protocol, TimeoutMixin):
                 UserLogoutHandler,
                 OpenPushTunnelHandler,
                 SendTextMessageHandler,
-                SetMarkerHandler]
+                SetMarkerHandler,
+                ChangePasswordHandler]
 
     handler_num = len(handlers)
 
@@ -675,6 +762,25 @@ class PTP(Protocol, TimeoutMixin):
     def connectionMade(self):
         logger.info("A new connection is made")
         self.setTimeout(self.factory.timeout)
+
+    def response(self, buff):
+        try:
+            h = PTP.handlers[self.optcode]()
+            reply = h.handle(buff[5:], self)
+#            logger.info("Wrote: %s", get_hex(reply))
+            self.transport.write(reply)
+            if self.tunnel:
+                logger.info("Blocking the client...")
+                self.tunnel.push()
+                self.length = -1
+                return
+            self.transport.loseConnection()
+        except BadReqError as e:
+            logger.warn("Rejected a bad request: %s", str(e))
+            self.transport.loseConnection()
+        except DBCorruptionError:
+            logger.error("*** Database corruption ***")
+
 
     def dataReceived(self, data):
         self.buff += data
@@ -701,24 +807,11 @@ class PTP(Protocol, TimeoutMixin):
                     self.tunnel.on_receive(buff)
                     self.length = -1
                     return
-                h = PTP.handlers[self.optcode]()
-                reply = h.handle(buff[5:], self)
-                logger.info("Wrote: %s", get_hex(reply))
-                self.transport.write(reply)
-                if self.tunnel:
-                    logger.info("Blocking the client...")
-                    self.tunnel.push()
-                    self.length = -1
-                    self.setTimeout(None)
-                    return
-                self.transport.loseConnection()
+                self.setTimeout(None)
+                reactor.callFromThread(self.response, buff)
+                #self.response(buff)
         except BadReqError as e:
             logger.warn("Rejected a bad request: %s", str(e))
-            self.transport.loseConnection()
-        except DBCorruptionError:
-            logger.error("*** Database corruption ***")
-            self.transport.loseConnection()
-        if self.tunnel is None:
             self.transport.loseConnection()
 
     def connectionLost(self, reason):
